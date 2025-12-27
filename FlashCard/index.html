@@ -1,1023 +1,923 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { Train, ShoppingBag, MessageCircle, AlertCircle, Camera, Home, X, Volume2, ChevronRight, Plus, ArrowUp, ArrowDown, Trash2, Edit3, Check, Languages, PenLine, Square, BookOpen, AlertTriangle, Keyboard, LayoutGrid } from 'lucide-react';
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>旅日一句通｜點了就會說</title>
 
-// --- 1. 常數與設定 ---
-const STORAGE_KEY = 'tabi_talk_phrases_v15'; 
+  <!-- Tailwind CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
 
-// 分類定義與關鍵字設定 (用於自動分類)
-const CATEGORIES = [
-  { id: 'survival', name: '萬用', icon: <MessageCircle size={18} />, activeClass: 'bg-rose-50 text-rose-600 border-rose-200' },
-  { id: 'consumption', name: '消費', icon: <ShoppingBag size={18} />, activeClass: 'bg-orange-50 text-orange-700 border-orange-200' },
-  { id: 'transport', name: '交通', icon: <Train size={18} />, activeClass: 'bg-sky-50 text-sky-700 border-sky-200' },
-  { id: 'accommodation', name: '住宿', icon: <Home size={18} />, activeClass: 'bg-violet-50 text-violet-700 border-violet-200' },
-  { id: 'interaction', name: '社交', icon: <Camera size={18} />, activeClass: 'bg-teal-50 text-teal-700 border-teal-200' },
-  { id: 'emergency', name: '救援', icon: <AlertCircle size={18} />, activeClass: 'bg-stone-100 text-stone-600 border-stone-300' },
-];
+  <!-- React 18 UMD -->
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
 
-const CATEGORY_IDS = new Set(CATEGORIES.map(c => c.id));
-const CATEGORY_ORDER = CATEGORIES.map(c => c.id);
+  <!-- Babel (讓你可以在單檔直接寫 JSX) -->
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 
-const CATEGORY_KEYWORDS = {
-  emergency: ['痛', '不舒服', '幫忙', '救護車', '過敏', '警察', '偷', '迷路', '遺失', '掉', '報案', '醫院'],
-  consumption: ['錢', '買', '吃', '菜單', '內用', '外帶', '位', '預約', '支付', '刷卡', '退稅', '結帳', '收據', '多少'],
-  transport: ['車', '站', '去', '出口', '月台', '票', '儲值', '線', '搭', '高速'],
-  accommodation: ['住', '房', '早餐', '行李', 'Wi-Fi', '退房', '入住', '寄放', '空調', '毛巾'],
-  interaction: ['拍照', '相片', '打擾', '中文', '台灣']
-};
+  <!-- Lucide (用 data-lucide 方式渲染 icon，不用 bundler / npm) -->
+  <script src="https://unpkg.com/lucide@0.559.0/dist/umd/lucide.min.js"></script>
 
-const INITIAL_PHRASES = [
-  // --- 萬用 (Survival) ---
-  { id: 's15', category: 'survival', zh: '謝謝／打招呼 (萬用)', jp: 'どうも', romaji: 'Dōmo' }, 
-  { id: 's40_copy', category: 'survival', zh: '麻煩你了／拜託你了', jp: 'お願いします', romaji: 'Onegaishimasu' },
-  { id: 's1', category: 'survival', zh: '不好意思／請問一下', jp: 'すみません', romaji: 'Sumimasen' },
-  { id: 's2', category: 'survival', zh: '謝謝 (正式)', jp: 'ありがとうございます', romaji: 'Arigatō gozaimasu' },
-  { id: 's6', category: 'survival', zh: '幫大忙了(感謝)', jp: '助かります', romaji: 'Tasukarimasu' },
-  { id: 's7', category: 'survival', zh: '對不起', jp: 'ごめんなさい', romaji: 'Gomennasai' },
-  { id: 's4', category: 'survival', zh: '可以嗎？／方便嗎？', jp: 'いいですか？', romaji: 'Ii desu ka?' },
-  { 
-    id: 's17', 
-    category: 'survival', 
-    zh: '有 ___ 嗎？', 
-    jp: '___ ありますか？', // 這裡做為 Template 使用
-    romaji: '___ arimasu ka?',
-    // 新增選項式填空資料
-    options: [
-      { zh: '洗手間', jp: 'トイレ' },
-      { zh: '出口', jp: '出口' },
-      { zh: '菜單', jp: 'メニュー' },
-      { zh: '英文菜單', jp: '英語のメニュー' },
-      { zh: '空位', jp: '空席' }
-    ]
-  }, 
-  { id: 's8', category: 'survival', zh: '會說中文嗎？', jp: '中国語できますか？', romaji: 'Chūgokugo dekimasu ka?' },
-  { id: 's12', category: 'survival', zh: '可以用翻譯軟體嗎？', jp: '翻訳アプリ使っていいですか？', romaji: 'Honyaku apuri tsukatte ii desu ka?' },
-  { id: 's9', category: 'survival', zh: '不好意思，我是外國人', jp: 'すみません、外国人です', romaji: 'Sumimasen, gaikokujin desu' },
-  { id: 's14', category: 'survival', zh: '我聽得懂一點點日文', jp: '日本語は少し分かります', romaji: 'Nihongo wa sukoshi wakarimasu' },
-  { id: 's10', category: 'survival', zh: '可以幫我一下嗎？', jp: 'ちょっと手伝ってもらえますか？', romaji: 'Chotto tetsudatte moraemasu ka?' },
-  { id: 's13', category: 'survival', zh: '請問可以再指一次嗎？', jp: 'もう一度指してもらえますか？', romaji: 'Mō ichido sashite moraemasu ka?' },
-  { id: 's11', category: 'survival', zh: '我可以用這個(給你看手機)嗎？', jp: 'これを見せてもいいですか？', romaji: 'Kore o misete mo ii desu ka?' },
-  { id: 'e14', category: 'survival', zh: '我可以把地圖給你看嗎？', jp: '地図を見せてもいいですか？', romaji: 'Chizu o misete mo ii desu ka?' },
-  { id: 'e15', category: 'survival', zh: '請用這張地圖指路', jp: '地図でお願いします', romaji: 'Chizu de onegaishimasu' },
-  { id: 'e16', category: 'survival', zh: '可以帶我過去嗎？(指引)', jp: '案内してもらえますか？', romaji: 'Annai shite moraemasu ka?' },
-  { id: 's5', category: 'survival', zh: '沒關係 (婉拒或沒事)', jp: '大丈夫です', romaji: 'Daijōbu desu' },
+  <style>
+    /* 隱藏水平 scrollbar（你原本的 no-scrollbar） */
+    .no-scrollbar::-webkit-scrollbar { width: 0; height: 0; display: none; }
+    .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
 
-  // --- 消費 (Consumption) ---
-  { id: 'c1', category: 'consumption', zh: '請給我這個', jp: 'これをください', romaji: 'Kore o kudasai' },
-  { id: 'c40', category: 'consumption', zh: '麻煩你了／拜託你了', jp: 'お願いします', romaji: 'Onegaishimasu' },
-  { id: 'c41', category: 'consumption', zh: '我要開動了', jp: 'いただきます', romaji: 'Itadakimasu' },
-  { id: 'c2', category: 'consumption', zh: '請問多少錢？', jp: 'おいくらですか？', romaji: 'Oikura desu ka?' },
-  { id: 'c42', category: 'consumption', zh: '多謝款待', jp: 'ごちそうさまでした', romaji: 'Gochisōsama deshita' },
-  { id: 'c17', category: 'consumption', zh: '請給我菜單', jp: 'メニューをお願いします', romaji: 'Menyū o onegaishimasu' },
-  { id: 'c18', category: 'consumption', zh: '我想點這個', jp: 'これにします', romaji: 'Kore ni shimasu' },
-  { id: 'c19', category: 'consumption', zh: '可以再加點這個嗎？', jp: 'これも追加できますか？', romaji: 'Kore mo tsuika dekimasu ka?' },
-  { id: 'c32', category: 'consumption', zh: '可以幫我加熱嗎？(超商)', jp: '温めてもらえますか？', romaji: 'Atatamete moraemasu ka?' },
-  { id: 'c33', category: 'consumption', zh: '請給我筷子(湯匙)', jp: 'お箸（スプーン）をください', romaji: 'Ohashi (supūn) o kudasai' },
-  { id: 'c20', category: 'consumption', zh: '請給我水', jp: 'お水ください', romaji: 'Omizu kudasai' },
-  { id: 'c21', category: 'consumption', zh: '不要辣', jp: '辛くしないでください', romaji: 'Karaku shinaide kudasai' },
-  { id: 'c22', category: 'consumption', zh: '我不吃___(挑食)', jp: '___は食べられません', romaji: '___ wa taberaremasen' },
-  { 
-    id: 'e8', 
-    category: 'consumption', 
-    zh: '我對___過敏', 
-    jp: '___アレルギーがあります', 
-    romaji: '___ arerugī ga arimasu',
-    options: [
-      { zh: '海鮮(魚/貝)', jp: '魚介類' },
-      { zh: '蝦蟹(甲殼類)', jp: '甲殻類（エビ・カニ）' },
-      { zh: '花生', jp: 'ピーナッツ' },
-      { zh: '麩質', jp: 'グルテン' },
-      { zh: '蛋', jp: '卵' },
-      { zh: '乳製品', jp: '乳製品' }
-    ]
-  },
-  { id: 'c36', category: 'consumption', zh: '我不喝酒', jp: 'お酒は飲めません', romaji: 'Osake wa nomemasen' },
-  { id: 'a1', category: 'consumption', zh: '內用，謝謝', jp: '店内でお願いします', romaji: 'Tennai de onegaishimasu' },
-  { id: 'a2', category: 'consumption', zh: '外帶，謝謝', jp: '持ち帰りでお願いします', romaji: 'Mochikaeri de onegaishimasu' },
-  { id: 'c23', category: 'consumption', zh: '我可以打包嗎？(剩下的)', jp: '持ち帰りできますか？', romaji: 'Mochikaeri dekimasu ka?' },
-  { id: 'a3', category: 'consumption', zh: '一位', jp: '一人です', romaji: 'Hitori desu' },
-  { id: 'a4', category: 'consumption', zh: '請問有位子嗎？', jp: '席は空いていますか？', romaji: 'Seki wa aiteimasu ka?' },
-  { id: 'c43', category: 'consumption', zh: '這裡可以坐嗎？', jp: 'ここに座ってもいいですか？', romaji: 'Koko ni suwatte mo ii desu ka?' }, 
-  { id: 'c14', category: 'consumption', zh: '我有預約', jp: '予約しています', romaji: 'Yoyaku shiteimasu' },
-  { id: 'c3', category: 'consumption', zh: '麻煩結帳', jp: 'お会計をお願いします', romaji: 'Okaikei onegaishimasu' },
-  { id: 'c24', category: 'consumption', zh: '可以分開結帳嗎？', jp: '別々にお願いします', romaji: 'Betsubetsu ni onegaishimasu' },
-  { id: 'c35', category: 'consumption', zh: '可以只收現金嗎？', jp: '現金のみですか？', romaji: 'Genkin nomi desu ka?' },
-  { id: 'c15', category: 'consumption', zh: '可以用現金嗎？', jp: '現金は使えますか？', romaji: 'Genkin wa tsukaemasu ka?' },
-  { id: 'c4', category: 'consumption', zh: '可以刷卡嗎？', jp: 'カードは使えますか？', romaji: 'Kādo wa tsukaemasu ka?' },
-  { id: 'c38', category: 'consumption', zh: '可以用coupon嗎？', jp: 'クーポン使えますか？', romaji: 'Kūpon tsukaemasu ka?' },
-  { id: 'c39', category: 'consumption', zh: '請用日圓計價', jp: '円建てでお願いします', romaji: 'Endate de onegaishimasu' },
-  { id: 'c16', category: 'consumption', zh: '可以用感應支付嗎？', jp: 'タッチできますか？', romaji: 'Tatchi dekimasu ka?' },
-  { id: 'c25a', category: 'consumption', zh: '可以用Apple Pay嗎？', jp: 'Apple Pay使えますか？', romaji: 'Apple Pay tsukaemasu ka?' },
-  { id: 'c25b', category: 'consumption', zh: '可以用交通卡(IC)嗎？', jp: 'ICカード使えますか？', romaji: 'IC kādo tsukaemasu ka?' },
-  { id: 'c26', category: 'consumption', zh: '可以開收據嗎？', jp: '領収書をお願いします', romaji: 'Ryōshūsho o onegaishimasu' },
-  { id: 'c10', category: 'consumption', zh: '可以退稅嗎？', jp: '免税できますか？', romaji: 'Menzei dekimasu ka?' },
-  { id: 'c30', category: 'consumption', zh: '我有護照(出示)', jp: 'パスポートです', romaji: 'Pasupōto desu' },
-  { id: 'c37', category: 'consumption', zh: '我有QR Code(出示)', jp: 'QRコードあります', romaji: 'QR kōdo arimasu' },
-  { id: 'c27', category: 'consumption', zh: '我想試穿', jp: '試着してもいいですか？', romaji: 'Shichaku shite mo ii desu ka?' },
-  { id: 'c31', category: 'consumption', zh: '有沒有其他顏色？', jp: '他の色はありますか？', romaji: 'Hoka no iro wa arimasu ka?' },
-  { id: 'c28', category: 'consumption', zh: '這個太大／太小', jp: '大きいです／小さいです', romaji: 'Ōkii desu / Chiisai desu' },
-  { id: 'c29', category: 'consumption', zh: '可以換貨／退貨嗎？', jp: '交換（返品）はできますか？', romaji: 'Kōkan (Henpin) wa dekimasu ka?' },
-  { id: 'c5', category: 'consumption', zh: '這是什麼？', jp: 'これは何ですか？', romaji: 'Kore wa nan desu ka?' },
-  { id: 'c6', category: 'consumption', zh: '推薦哪一個？', jp: 'おすすめはどちらですか？', romaji: 'Osusume wa dochira desu ka?' },
-  { id: 'c34', category: 'consumption', zh: '不要塑膠袋', jp: '袋はいりません', romaji: 'Fukuro wa irimasen' },
-  { id: 'c9', category: 'consumption', zh: '麻煩幫我裝袋', jp: '袋をお願いします', romaji: 'Fukuro o onegaishimasu' },
+    /* iOS 點按更順 */
+    html, body { -webkit-tap-highlight-color: transparent; }
+  </style>
+</head>
 
-  // --- 住宿 (Accommodation) ---
-  { id: 'a5', category: 'accommodation', zh: '麻煩辦理入住', jp: 'チェックインをお願いします', romaji: 'Chekkuin o onegaishimasu' },
-  { id: 'a10', category: 'accommodation', zh: '我有訂房，這是訂單', jp: '予約しています。こちらです', romaji: 'Yoyaku shiteimasu. Kochira desu' },
-  { id: 'a11', category: 'accommodation', zh: '可以提早入住／延後退房嗎？', jp: 'アーリーチェックイン（レイトチェックアウト）はできますか？', romaji: 'Ārī chekkuin (Reito chekkuauto) wa dekimasu ka?' },
-  { id: 'a12', category: 'accommodation', zh: '麻煩辦理退房', jp: 'チェックアウトをお願いします', romaji: 'Chekkuauto o onegaishimasu' },
-  { id: 'a9', category: 'accommodation', zh: '可以寄放行李嗎？', jp: '荷物、預けられますか？', romaji: 'Nimotsu, azukeraremasu ka?' },
-  { id: 'a17', category: 'accommodation', zh: '可以借轉接頭/充電器嗎？', jp: '変換プラグ（充電器）は借りられますか？', romaji: 'Henkan puragu (jūdenki) wa kariraremasu ka?' },
-  { id: 'a13', category: 'accommodation', zh: '房卡不能用', jp: 'カードキーが使えません', romaji: 'Kādokī ga tsukaemasen' },
-  { id: 'a14', category: 'accommodation', zh: '房間有問題(空調不冷)', jp: 'エアコンが効きません', romaji: 'Eakon ga kikimasen' },
-  { id: 'a18', category: 'accommodation', zh: '毛巾不夠', jp: 'タオルをもう一枚ください', romaji: 'Taoru o mō ichimai kudasai' },
-  { id: 'a15', category: 'accommodation', zh: '可以換房嗎？', jp: '部屋を変えていただけますか？', romaji: 'Heya o kaete itadakemasu ka?' },
-  { id: 'a16', category: 'accommodation', zh: 'Wi-Fi 密碼是什麼？', jp: 'Wi-Fiのパスワードは何ですか？', romaji: 'Wi-Fi no pasuwādo wa nan desu ka?' },
-  { id: 'a6', category: 'accommodation', zh: '想加訂早餐', jp: '朝食を追加したいのですが', romaji: 'Chōshoku o tsuika shitai no desu ga' },
-  { id: 'a7', category: 'accommodation', zh: '請幫我叫計程車', jp: 'タクシー呼んでもらえますか？', romaji: 'Takushī yonde moraemasu ka?' },
-  { id: 'a19', category: 'accommodation', zh: '可以打掃嗎', jp: '掃除お願いします', romaji: 'Sōji onegaishimasu' },
-  { id: 'a20', category: 'accommodation', zh: '不用打掃', jp: '掃除いりません', romaji: 'Sōji irimasen' },
-  { id: 'a8', category: 'accommodation', zh: '是否有我的包裹？', jp: '私宛の荷物は届いていますか？', romaji: 'Watashi-ate no nimotsu wa todoite imasu ka?' },
+<body class="bg-[#fdfbf7]">
+  <div id="root"></div>
 
-  // --- 交通 (Transport) ---
-  { id: 't18', category: 'transport', zh: '我想儲值(加值)', jp: 'チャージしたいです', romaji: 'Chāji shitai desu' },
-  { id: 't19', category: 'transport', zh: '餘額不足', jp: '残高不足です', romaji: 'Zandaka busoku desu' },
-  { 
-    id: 't9', 
-    category: 'transport', 
-    zh: '這班車去___嗎？', 
-    jp: 'この電車は___に行きますか？', 
-    romaji: 'Kono densha wa ___ ni ikimasu ka?',
-    options: [
-      { zh: '大阪', jp: '大阪' },
-      { zh: '京都', jp: '京都' },
-      { zh: '神戶', jp: '神戸' },
-      { zh: '奈良', jp: '奈良' }
-    ]
-  },
-  { id: 't10', category: 'transport', zh: '我應該搭哪一條線？', jp: 'どの線に乗ればいいですか？', romaji: 'Dono sen ni noreba ii desu ka?' },
-  { id: 't20', category: 'transport', zh: '我坐錯車了', jp: '電車を間違えました', romaji: 'Densha o machigaemashita' },
-  { id: 't2', category: 'transport', zh: '請問車站在哪？', jp: '駅はどちらですか？', romaji: 'Eki wa dochira desu ka?' },
-  { id: 't11', category: 'transport', zh: '月台在哪裡？', jp: 'ホームはどこですか？', romaji: 'Hōmu wa doko desu ka?' },
-  { id: 't21', category: 'transport', zh: '這個月台對嗎？', jp: 'このホームで合っていますか？', romaji: 'Kono hōmu de atte imasu ka?' },
-  { id: 't12', category: 'transport', zh: '這是特急／快速嗎？', jp: 'これは特急（快速）ですか？', romaji: 'Kore wa tokkyū (kaisoku) desu ka?' },
-  { id: 't13', category: 'transport', zh: '我想去___', jp: '___に行きたいです', romaji: '___ ni ikitai desu' },
-  { id: 't6', category: 'transport', zh: '下一站是哪裡？', jp: '次はどこですか？', romaji: 'Tsugi wa doko desu ka?' },
-  { id: 't14', category: 'transport', zh: '可以幫我看這張票嗎？', jp: 'この切符、見てもらえますか？', romaji: 'Kono kippu, mite moraemasu ka?' },
-  { id: 't15', category: 'transport', zh: '我刷卡進不去(出不去)', jp: '改札を通れません', romaji: 'Kaisatsu o tōremasen' },
-  { id: 't1', category: 'transport', zh: '請問洗手間在哪？', jp: 'お手洗いはどちらですか？', romaji: 'Otearai wa dochira desu ka?' },
-  { id: 't7', category: 'transport', zh: '請問出口是哪一個？', jp: '出口はどちらですか？', romaji: 'Deguchi wa dochira desu ka?' },
-  { id: 't22', category: 'transport', zh: '請問最近的電梯在哪？', jp: 'エレベーターはどこですか？', romaji: 'Erebētā wa doko desu ka?' },
-  { id: 't4', category: 'transport', zh: '請問置物櫃在哪？', jp: 'コインロッカーはどちらですか？', romaji: 'Koin rokkā wa dochira desu ka?' },
-  { id: 't3', category: 'transport', zh: '請問怎麼去這裡？', jp: '行き方を教えてください', romaji: 'Ikikata o oshiete kudasai' },
-  { id: 't16', category: 'transport', zh: '請到這個地址(計程車)', jp: 'この住所までお願いします', romaji: 'Kono jūsho made onegaishimasu' },
-  { id: 't17', category: 'transport', zh: '麻煩走高速公路', jp: '高速でお願いします', romaji: 'Kōsoku de onegaishimasu' },
+  <script type="text/babel">
+    const { useState, useEffect, useRef } = React;
 
-  // --- 社交 (Interaction) ---
-  { id: 'i4', category: 'interaction', zh: '你好', jp: 'こんにちは', romaji: 'Konnichiwa' },
-  { id: 'i5', category: 'interaction', zh: '晚安', jp: 'こんばんは', romaji: 'Konbanwa' },
-  { id: 'i6', category: 'interaction', zh: '我從台灣來', jp: '台湾から来ました', romaji: 'Taiwan kara kimashita' },
-  { id: 'i3', category: 'interaction', zh: '不好意思，打擾了', jp: 'すみません、失礼します', romaji: 'Sumimasen, shitsurei shimasu' },
-  { id: 'i7', category: 'interaction', zh: '可以請你再幫我一次嗎？', jp: 'もう一度お願いできますか？', romaji: 'Mō ichido onegai dekimasu ka?' },
-  { id: 'i10', category: 'interaction', zh: '可以麻煩你幫我看一下嗎？', jp: 'ちょっと見てもらえますか？', romaji: 'Chotto mite moraemasu ka?' },
-  { id: 'i11', category: 'interaction', zh: '我可以問一下嗎？', jp: 'ちょっと聞いてもいいですか？', romaji: 'Chotto kiite mo ii desu ka?' },
-  { id: 'i1', category: 'interaction', zh: '可以拍照嗎？', jp: '写真いいですか？', romaji: 'Shashin ii desu ka?' },
-  { id: 'i9', category: 'interaction', zh: '我可以跟你合照嗎？', jp: '一緒に写真を撮ってもいいですか？', romaji: 'Issho ni shashin o totte mo ii desu ka?' },
-  { id: 'i2', category: 'interaction', zh: '可以幫我拍照嗎？', jp: '写真撮ってもらえますか？', romaji: 'Shashin totte moraemasu ka?' },
+    // --- 1. 常數與設定 ---
+    const STORAGE_KEY = 'tabi_talk_phrases_v15';
 
-  // --- 救援 (Emergency) ---
-  { id: 'e9', category: 'emergency', zh: '我需要幫忙', jp: '助けてください', romaji: 'Tasukete kudasai' },
-  { id: 'e6', category: 'emergency', zh: '不好意思，我迷路了', jp: '道に迷ってしまいました', romaji: 'Michi ni mayotte shimaimashita' },
-  { id: 'e10', category: 'emergency', zh: '這裡是哪裡？', jp: 'ここはどこですか？', romaji: 'Koko wa doko desu ka?' },
-  { id: 'e11', category: 'emergency', zh: '我掉了錢包／手機', jp: '財布（携帯）をなくしました', romaji: 'Saifu (Keitai) o nakushimashita' },
-  { id: 'e12', category: 'emergency', zh: '我被偷了', jp: '盗まれました', romaji: 'Nusumaremashita' },
-  { id: 'e25', category: 'emergency', zh: '我想找失物招領', jp: '忘れ物センターはどこですか？', romaji: 'Wasuremono sentā wa doko desu ka?' },
-  { id: 'e13', category: 'emergency', zh: '我想去派出所', jp: '交番に行きたいです', romaji: 'Kōban ni ikitai desu' },
-  { id: 'e7', category: 'emergency', zh: '請幫我叫警察', jp: '警察を呼んでください', romaji: 'Keisatsu o yonde kudasai' },
-  { id: 'e26', category: 'emergency', zh: '我需要報案', jp: '届け出をしたいです', romaji: 'Todokede o shitai desu' },
-  { id: 'e17', category: 'emergency', zh: '我不太會日文', jp: '日本語があまり話せません', romaji: 'Nihongo ga amari hanasemasen' },
-  { id: 'e1', category: 'emergency', zh: '我聽不太懂', jp: 'よく分かりません', romaji: 'Yoku wakarimasen' },
-  { id: 'e2', category: 'emergency', zh: '麻煩再說一次', jp: 'もう一度お願いします', romaji: 'Mō ichido onegaishimasu' },
-  { id: 'e3', category: 'emergency', zh: '請慢慢說', jp: 'ゆっくり話していただけますか？', romaji: 'Yukkuri hanashite itadakemasu ka?' },
-  { id: 'e4_copy', category: 'emergency', zh: '請幫我叫計程車(緊急)', jp: 'タクシーを呼んでください', romaji: 'Takushī o yonde kudasai' },
-  // 醫療
-  { id: 'e5', category: 'emergency', zh: '我不舒服', jp: '具合が悪いです', romaji: 'Guai ga warui desu' },
-  { id: 'e18', category: 'emergency', zh: '我頭暈', jp: 'めまいがします', romaji: 'Memai ga shimasu' },
-  { id: 'e19', category: 'emergency', zh: '我肚子痛', jp: 'お腹が痛いです', romaji: 'Onaka ga itai desu' },
-  { id: 'e20', category: 'emergency', zh: '我發燒', jp: '熱があります', romaji: 'Netsu ga arimasu' },
-  { id: 'e21', category: 'emergency', zh: '我在吃藥', jp: '薬を飲んでいます', romaji: 'Kusuri o nondeimasu' },
-  { id: 'e22', category: 'emergency', zh: '我需要醫院', jp: '病院に行きたいです', romaji: 'Byōin ni ikitai desu' },
-  { id: 'e23', category: 'emergency', zh: '請幫我叫救護車', jp: '救急車を呼んでください', romaji: 'Kyūkyūsha o yonde kudasai' },
-];
+    const CATEGORIES = [
+      { id: 'survival',       name: '萬用', icon: 'message-circle', activeClass: 'bg-rose-50 text-rose-600 border-rose-200' },
+      { id: 'consumption',    name: '消費', icon: 'shopping-bag',   activeClass: 'bg-orange-50 text-orange-700 border-orange-200' },
+      { id: 'transport',      name: '交通', icon: 'train',          activeClass: 'bg-sky-50 text-sky-700 border-sky-200' },
+      { id: 'accommodation',  name: '住宿', icon: 'home',           activeClass: 'bg-violet-50 text-violet-700 border-violet-200' },
+      { id: 'interaction',    name: '社交', icon: 'camera',         activeClass: 'bg-teal-50 text-teal-700 border-teal-200' },
+      { id: 'emergency',      name: '救援', icon: 'alert-circle',   activeClass: 'bg-stone-100 text-stone-600 border-stone-300' },
+    ];
 
-// --- 2. 核心工具函式 ---
+    const CATEGORY_IDS = new Set(CATEGORIES.map(c => c.id));
+    const CATEGORY_ORDER = CATEGORIES.map(c => c.id);
 
-// 生成唯一 ID
-function generateId() {
-  if (window.crypto && window.crypto.randomUUID) {
-    return window.crypto.randomUUID();
-  }
-  return 'id_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
-}
-
-// 資料淨化：防止 Schema 不符導致 Crash
-function sanitizePhrases(list) {
-  if (!Array.isArray(list)) return INITIAL_PHRASES;
-  return list
-    .filter(x => x && typeof x === 'object')
-    .map(x => ({
-      id: String(x.id || generateId()),
-      category: CATEGORY_IDS.has(x.category) ? x.category : 'survival',
-      zh: String(x.zh || ''),
-      jp: String(x.jp || ''),
-      romaji: String(x.romaji || ''),
-      options: Array.isArray(x.options) 
-        ? x.options
-            .filter(o => o && typeof o === 'object')
-            .map(o => ({ zh: String(o.zh || ''), jp: String(o.jp || '') }))
-            .filter(o => o.zh.trim() && o.jp.trim())
-        : undefined, // 確保 options 格式正確
-    }))
-    .filter(x => x.zh.trim() || x.jp.trim());
-}
-
-// 排序正規化：確保分類群聚 (Group by category)
-const normalizeOrder = (list) => {
-  return [...list].sort((a, b) => {
-    const ia = CATEGORY_ORDER.indexOf(a.category);
-    const ib = CATEGORY_ORDER.indexOf(b.category);
-    // 如果分類不同，按分類順序排；如果分類相同，維持原順序 (Stable sort)
-    return ia - ib;
-  });
-};
-
-function loadPhrasesSafe() {
-  try {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    if (!saved) return INITIAL_PHRASES;
-    return sanitizePhrases(JSON.parse(saved));
-  } catch (e) {
-    console.warn('資料讀取錯誤，已重置為預設值:', e);
-    localStorage.removeItem(STORAGE_KEY);
-    return INITIAL_PHRASES;
-  }
-}
-
-export default function App() {
-  // --- State Management ---
-  const [phrases, setPhrases] = useState(loadPhrasesSafe);
-  const [activeCategory, setActiveCategory] = useState('survival');
-  // 改為存 ID，避免物件引用過期
-  const [selectedPhraseId, setSelectedPhraseId] = useState(null);
-  const [isSpeaking, setIsSpeaking] = useState(false);
-  const [isEditMode, setIsEditMode] = useState(false);
-  const [isAdding, setIsAdding] = useState(false);
-  const [newPhrase, setNewPhrase] = useState({ zh: '', jp: '', romaji: '', category: 'survival' });
-  const [voices, setVoices] = useState([]);
-  
-  // 刪除確認用
-  const [phraseToDelete, setPhraseToDelete] = useState(null);
-
-  // 填空功能用的 State
-  const [inputText, setInputText] = useState('');
-  
-  // 新增：選項式填空 State
-  const [selectedOption, setSelectedOption] = useState(null);
-  // 新增：是否強制切換到手動輸入模式
-  const [isManualMode, setIsManualMode] = useState(false);
-
-  // Refs
-  const speechTimeoutRef = useRef(null);
-  const playDelayRef = useRef(null);
-  const utteranceRef = useRef(null);
-
-  // Derived State
-  const selectedPhrase = phrases.find(p => p.id === selectedPhraseId) || null;
-
-  // --- Effects ---
-
-  // Cleanup
-  useEffect(() => {
-    return () => {
-      stopSpeaking();
+    const CATEGORY_KEYWORDS = {
+      emergency:      ['痛', '不舒服', '幫忙', '救護車', '過敏', '警察', '偷', '迷路', '遺失', '掉', '報案', '醫院'],
+      consumption:    ['錢', '買', '吃', '菜單', '內用', '外帶', '位', '預約', '支付', '刷卡', '退稅', '結帳', '收據', '多少'],
+      transport:      ['車', '站', '去', '出口', '月台', '票', '儲值', '線', '搭', '高速'],
+      accommodation:  ['住', '房', '早餐', '行李', 'Wi-Fi', '退房', '入住', '寄放', '空調', '毛巾'],
+      interaction:    ['拍照', '相片', '打擾', '中文', '台灣']
     };
-  }, []);
 
-  useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(phrases));
-    } catch (e) {
-      console.error('儲存失敗:', e);
+    const INITIAL_PHRASES = [
+      // --- 萬用 (Survival) ---
+      { id: 's15', category: 'survival', zh: '謝謝／打招呼 (萬用)', jp: 'どうも', romaji: 'Dōmo' },
+      { id: 's40_copy', category: 'survival', zh: '麻煩你了／拜託你了', jp: 'お願いします', romaji: 'Onegaishimasu' },
+      { id: 's1', category: 'survival', zh: '不好意思／請問一下', jp: 'すみません', romaji: 'Sumimasen' },
+      { id: 's2', category: 'survival', zh: '謝謝 (正式)', jp: 'ありがとうございます', romaji: 'Arigatō gozaimasu' },
+      { id: 's6', category: 'survival', zh: '幫大忙了(感謝)', jp: '助かります', romaji: 'Tasukarimasu' },
+      { id: 's7', category: 'survival', zh: '對不起', jp: 'ごめんなさい', romaji: 'Gomennasai' },
+      { id: 's4', category: 'survival', zh: '可以嗎？／方便嗎？', jp: 'いいですか？', romaji: 'Ii desu ka?' },
+      {
+        id: 's17',
+        category: 'survival',
+        zh: '有 ___ 嗎？',
+        jp: '___ ありますか？',
+        romaji: '___ arimasu ka?',
+        options: [
+          { zh: '洗手間', jp: 'トイレ' },
+          { zh: '出口', jp: '出口' },
+          { zh: '菜單', jp: 'メニュー' },
+          { zh: '英文菜單', jp: '英語のメニュー' },
+          { zh: '空位', jp: '空席' }
+        ]
+      },
+      { id: 's8', category: 'survival', zh: '會說中文嗎？', jp: '中国語できますか？', romaji: 'Chūgokugo dekimasu ka?' },
+      { id: 's12', category: 'survival', zh: '可以用翻譯軟體嗎？', jp: '翻訳アプリ使っていいですか？', romaji: 'Honyaku apuri tsukatte ii desu ka?' },
+      { id: 's9', category: 'survival', zh: '不好意思，我是外國人', jp: 'すみません、外国人です', romaji: 'Sumimasen, gaikokujin desu' },
+      { id: 's14', category: 'survival', zh: '我聽得懂一點點日文', jp: '日本語は少し分かります', romaji: 'Nihongo wa sukoshi wakarimasu' },
+      { id: 's10', category: 'survival', zh: '可以幫我一下嗎？', jp: 'ちょっと手伝ってもらえますか？', romaji: 'Chotto tetsudatte moraemasu ka?' },
+      { id: 's13', category: 'survival', zh: '請問可以再指一次嗎？', jp: 'もう一度指してもらえますか？', romaji: 'Mō ichido sashite moraemasu ka?' },
+      { id: 's11', category: 'survival', zh: '我可以用這個(給你看手機)嗎？', jp: 'これを見せてもいいですか？', romaji: 'Kore o misete mo ii desu ka?' },
+      { id: 'e14', category: 'survival', zh: '我可以把地圖給你看嗎？', jp: '地図を見せてもいいですか？', romaji: 'Chizu o misete mo ii desu ka?' },
+      { id: 'e15', category: 'survival', zh: '請用這張地圖指路', jp: '地図でお願いします', romaji: 'Chizu de onegaishimasu' },
+      { id: 'e16', category: 'survival', zh: '可以帶我過去嗎？(指引)', jp: '案内してもらえますか？', romaji: 'Annai shite moraemasu ka?' },
+      { id: 's5', category: 'survival', zh: '沒關係 (婉拒或沒事)', jp: '大丈夫です', romaji: 'Daijōbu desu' },
+
+      // --- 消費 (Consumption) ---
+      { id: 'c1', category: 'consumption', zh: '請給我這個', jp: 'これをください', romaji: 'Kore o kudasai' },
+      { id: 'c40', category: 'consumption', zh: '麻煩你了／拜託你了', jp: 'お願いします', romaji: 'Onegaishimasu' },
+      { id: 'c41', category: 'consumption', zh: '我要開動了', jp: 'いただきます', romaji: 'Itadakimasu' },
+      { id: 'c2', category: 'consumption', zh: '請問多少錢？', jp: 'おいくらですか？', romaji: 'Oikura desu ka?' },
+      { id: 'c42', category: 'consumption', zh: '多謝款待', jp: 'ごちそうさまでした', romaji: 'Gochisōsama deshita' },
+      { id: 'c17', category: 'consumption', zh: '請給我菜單', jp: 'メニューをお願いします', romaji: 'Menyū o onegaishimasu' },
+      { id: 'c18', category: 'consumption', zh: '我想點這個', jp: 'これにします', romaji: 'Kore ni shimasu' },
+      { id: 'c19', category: 'consumption', zh: '可以再加點這個嗎？', jp: 'これも追加できますか？', romaji: 'Kore mo tsuika dekimasu ka?' },
+      { id: 'c32', category: 'consumption', zh: '可以幫我加熱嗎？(超商)', jp: '温めてもらえますか？', romaji: 'Atatamete moraemasu ka?' },
+      { id: 'c33', category: 'consumption', zh: '請給我筷子(湯匙)', jp: 'お箸（スプーン）をください', romaji: 'Ohashi (supūn) o kudasai' },
+      { id: 'c20', category: 'consumption', zh: '請給我水', jp: 'お水ください', romaji: 'Omizu kudasai' },
+      { id: 'c21', category: 'consumption', zh: '不要辣', jp: '辛くしないでください', romaji: 'Karaku shinaide kudasai' },
+      { id: 'c22', category: 'consumption', zh: '我不吃___(挑食)', jp: '___は食べられません', romaji: '___ wa taberaremasen' },
+      {
+        id: 'e8',
+        category: 'consumption',
+        zh: '我對___過敏',
+        jp: '___アレルギーがあります',
+        romaji: '___ arerugī ga arimasu',
+        options: [
+          { zh: '海鮮(魚/貝)', jp: '魚介類' },
+          { zh: '蝦蟹(甲殼類)', jp: '甲殻類（エビ・カニ）' },
+          { zh: '花生', jp: 'ピーナッツ' },
+          { zh: '麩質', jp: 'グルテン' },
+          { zh: '蛋', jp: '卵' },
+          { zh: '乳製品', jp: '乳製品' }
+        ]
+      },
+      { id: 'c36', category: 'consumption', zh: '我不喝酒', jp: 'お酒は飲めません', romaji: 'Osake wa nomemasen' },
+      { id: 'a1', category: 'consumption', zh: '內用，謝謝', jp: '店内でお願いします', romaji: 'Tennai de onegaishimasu' },
+      { id: 'a2', category: 'consumption', zh: '外帶，謝謝', jp: '持ち帰りでお願いします', romaji: 'Mochikaeri de onegaishimasu' },
+      { id: 'c23', category: 'consumption', zh: '我可以打包嗎？(剩下的)', jp: '持ち帰りできますか？', romaji: 'Mochikaeri dekimasu ka?' },
+      { id: 'a3', category: 'consumption', zh: '一位', jp: '一人です', romaji: 'Hitori desu' },
+      { id: 'a4', category: 'consumption', zh: '請問有位子嗎？', jp: '席は空いていますか？', romaji: 'Seki wa aiteimasu ka?' },
+      { id: 'c43', category: 'consumption', zh: '這裡可以坐嗎？', jp: 'ここに座ってもいいですか？', romaji: 'Koko ni suwatte mo ii desu ka?' },
+      { id: 'c14', category: 'consumption', zh: '我有預約', jp: '予約しています', romaji: 'Yoyaku shiteimasu' },
+      { id: 'c3', category: 'consumption', zh: '麻煩結帳', jp: 'お会計をお願いします', romaji: 'Okaikei onegaishimasu' },
+      { id: 'c24', category: 'consumption', zh: '可以分開結帳嗎？', jp: '別々にお願いします', romaji: 'Betsubetsu ni onegaishimasu' },
+      { id: 'c35', category: 'consumption', zh: '可以只收現金嗎？', jp: '現金のみですか？', romaji: 'Genkin nomi desu ka?' },
+      { id: 'c15', category: 'consumption', zh: '可以用現金嗎？', jp: '現金は使えますか？', romaji: 'Genkin wa tsukaemasu ka?' },
+      { id: 'c4', category: 'consumption', zh: '可以刷卡嗎？', jp: 'カードは使えますか？', romaji: 'Kādo wa tsukaemasu ka?' },
+      { id: 'c38', category: 'consumption', zh: '可以用coupon嗎？', jp: 'クーポン使えますか？', romaji: 'Kūpon tsukaemasu ka?' },
+      { id: 'c39', category: 'consumption', zh: '請用日圓計價', jp: '円建てでお願いします', romaji: 'Endate de onegaishimasu' },
+      { id: 'c16', category: 'consumption', zh: '可以用感應支付嗎？', jp: 'タッチできますか？', romaji: 'Tatchi dekimasu ka?' },
+      { id: 'c25a', category: 'consumption', zh: '可以用Apple Pay嗎？', jp: 'Apple Pay使えますか？', romaji: 'Apple Pay tsukaemasu ka?' },
+      { id: 'c25b', category: 'consumption', zh: '可以用交通卡(IC)嗎？', jp: 'ICカード使えますか？', romaji: 'IC kādo tsukaemasu ka?' },
+      { id: 'c26', category: 'consumption', zh: '可以開收據嗎？', jp: '領収書をお願いします', romaji: 'Ryōshūsho o onegaishimasu' },
+      { id: 'c10', category: 'consumption', zh: '可以退稅嗎？', jp: '免税できますか？', romaji: 'Menzei dekimasu ka?' },
+      { id: 'c30', category: 'consumption', zh: '我有護照(出示)', jp: 'パスポートです', romaji: 'Pasupōto desu' },
+      { id: 'c37', category: 'consumption', zh: '我有QR Code(出示)', jp: 'QRコードあります', romaji: 'QR kōdo arimasu' },
+      { id: 'c27', category: 'consumption', zh: '我想試穿', jp: '試着してもいいですか？', romaji: 'Shichaku shite mo ii desu ka?' },
+      { id: 'c31', category: 'consumption', zh: '有沒有其他顏色？', jp: '他の色はありますか？', romaji: 'Hoka no iro wa arimasu ka?' },
+      { id: 'c28', category: 'consumption', zh: '這個太大／太小', jp: '大きいです／小さいです', romaji: 'Ōkii desu / Chiisai desu' },
+      { id: 'c29', category: 'consumption', zh: '可以換貨／退貨嗎？', jp: '交換（返品）はできますか？', romaji: 'Kōkan (Henpin) wa dekimasu ka?' },
+      { id: 'c5', category: 'consumption', zh: '這是什麼？', jp: 'これは何ですか？', romaji: 'Kore wa nan desu ka?' },
+      { id: 'c6', category: 'consumption', zh: '推薦哪一個？', jp: 'おすすめはどちらですか？', romaji: 'Osusume wa dochira desu ka?' },
+      { id: 'c34', category: 'consumption', zh: '不要塑膠袋', jp: '袋はいりません', romaji: 'Fukuro wa irimasen' },
+      { id: 'c9', category: 'consumption', zh: '麻煩幫我裝袋', jp: '袋をお願いします', romaji: 'Fukuro o onegaishimasu' },
+
+      // --- 住宿 (Accommodation) ---
+      { id: 'a5', category: 'accommodation', zh: '麻煩辦理入住', jp: 'チェックインをお願いします', romaji: 'Chekkuin o onegaishimasu' },
+      { id: 'a10', category: 'accommodation', zh: '我有訂房，這是訂單', jp: '予約しています。こちらです', romaji: 'Yoyaku shiteimasu. Kochira desu' },
+      { id: 'a11', category: 'accommodation', zh: '可以提早入住／延後退房嗎？', jp: 'アーリーチェックイン（レイトチェックアウト）はできますか？', romaji: 'Ārī chekkuin (Reito chekkuauto) wa dekimasu ka?' },
+      { id: 'a12', category: 'accommodation', zh: '麻煩辦理退房', jp: 'チェックアウトをお願いします', romaji: 'Chekkuauto o onegaishimasu' },
+      { id: 'a9', category: 'accommodation', zh: '可以寄放行李嗎？', jp: '荷物、預けられますか？', romaji: 'Nimotsu, azukeraremasu ka?' },
+      { id: 'a17', category: 'accommodation', zh: '可以借轉接頭/充電器嗎？', jp: '変換プラグ（充電器）は借りられますか？', romaji: 'Henkan puragu (jūdenki) wa kariraremasu ka?' },
+      { id: 'a13', category: 'accommodation', zh: '房卡不能用', jp: 'カードキーが使えません', romaji: 'Kādokī ga tsukaemasen' },
+      { id: 'a14', category: 'accommodation', zh: '房間有問題(空調不冷)', jp: 'エアコンが効きません', romaji: 'Eakon ga kikimasen' },
+      { id: 'a18', category: 'accommodation', zh: '毛巾不夠', jp: 'タオルをもう一枚ください', romaji: 'Taoru o mō ichimai kudasai' },
+      { id: 'a15', category: 'accommodation', zh: '可以換房嗎？', jp: '部屋を変えていただけますか？', romaji: 'Heya o kaete itadakemasu ka?' },
+      { id: 'a16', category: 'accommodation', zh: 'Wi-Fi 密碼是什麼？', jp: 'Wi-Fiのパスワードは何ですか？', romaji: 'Wi-Fi no pasuwādo wa nan desu ka?' },
+      { id: 'a6', category: 'accommodation', zh: '想加訂早餐', jp: '朝食を追加したいのですが', romaji: 'Chōshoku o tsuika shitai no desu ga' },
+      { id: 'a7', category: 'accommodation', zh: '請幫我叫計程車', jp: 'タクシー呼んでもらえますか？', romaji: 'Takushī yonde moraemasu ka?' },
+      { id: 'a19', category: 'accommodation', zh: '可以打掃嗎', jp: '掃除お願いします', romaji: 'Sōji onegaishimasu' },
+      { id: 'a20', category: 'accommodation', zh: '不用打掃', jp: '掃除いりません', romaji: 'Sōji irimasen' },
+      { id: 'a8', category: 'accommodation', zh: '是否有我的包裹？', jp: '私宛の荷物は届いていますか？', romaji: 'Watashi-ate no nimotsu wa todoite imasu ka?' },
+
+      // --- 交通 (Transport) ---
+      { id: 't18', category: 'transport', zh: '我想儲值(加值)', jp: 'チャージしたいです', romaji: 'Chāji shitai desu' },
+      { id: 't19', category: 'transport', zh: '餘額不足', jp: '残高不足です', romaji: 'Zandaka busoku desu' },
+      {
+        id: 't9',
+        category: 'transport',
+        zh: '這班車去___嗎？',
+        jp: 'この電車は___に行きますか？',
+        romaji: 'Kono densha wa ___ ni ikimasu ka?',
+        options: [
+          { zh: '大阪', jp: '大阪' },
+          { zh: '京都', jp: '京都' },
+          { zh: '神戶', jp: '神戸' },
+          { zh: '奈良', jp: '奈良' }
+        ]
+      },
+      { id: 't10', category: 'transport', zh: '我應該搭哪一條線？', jp: 'どの線に乗ればいいですか？', romaji: 'Dono sen ni noreba ii desu ka?' },
+      { id: 't20', category: 'transport', zh: '我坐錯車了', jp: '電車を間違えました', romaji: 'Densha o machigaemashita' },
+      { id: 't2', category: 'transport', zh: '請問車站在哪？', jp: '駅はどちらですか？', romaji: 'Eki wa dochira desu ka?' },
+      { id: 't11', category: 'transport', zh: '月台在哪裡？', jp: 'ホームはどこですか？', romaji: 'Hōmu wa doko desu ka?' },
+      { id: 't21', category: 'transport', zh: '這個月台對嗎？', jp: 'このホームで合っていますか？', romaji: 'Kono hōmu de atte imasu ka?' },
+      { id: 't12', category: 'transport', zh: '這是特急／快速嗎？', jp: 'これは特急（快速）ですか？', romaji: 'Kore wa tokkyū (kaisoku) desu ka?' },
+      { id: 't13', category: 'transport', zh: '我想去___', jp: '___に行きたいです', romaji: '___ ni ikitai desu' },
+      { id: 't6', category: 'transport', zh: '下一站是哪裡？', jp: '次はどこですか？', romaji: 'Tsugi wa doko desu ka?' },
+      { id: 't14', category: 'transport', zh: '可以幫我看這張票嗎？', jp: 'この切符、見てもらえますか？', romaji: 'Kono kippu, mite moraemasu ka?' },
+      { id: 't15', category: 'transport', zh: '我刷卡進不去(出不去)', jp: '改札を通れません', romaji: 'Kaisatsu o tōremasen' },
+      { id: 't1', category: 'transport', zh: '請問洗手間在哪？', jp: 'お手洗いはどちらですか？', romaji: 'Otearai wa dochira desu ka?' },
+      { id: 't7', category: 'transport', zh: '請問出口是哪一個？', jp: '出口はどちらですか？', romaji: 'Deguchi wa dochira desu ka?' },
+      { id: 't22', category: 'transport', zh: '請問最近的電梯在哪？', jp: 'エレベーターはどこですか？', romaji: 'Erebētā wa doko desu ka?' },
+      { id: 't4', category: 'transport', zh: '請問置物櫃在哪？', jp: 'コインロッカーはどちらですか？', romaji: 'Koin rokkā wa dochira desu ka?' },
+      { id: 't3', category: 'transport', zh: '請問怎麼去這裡？', jp: '行き方を教えてください', romaji: 'Ikikata o oshiete kudasai' },
+      { id: 't16', category: 'transport', zh: '請到這個地址(計程車)', jp: 'この住所までお願いします', romaji: 'Kono jūsho made onegaishimasu' },
+      { id: 't17', category: 'transport', zh: '麻煩走高速公路', jp: '高速でお願いします', romaji: 'Kōsoku de onegaishimasu' },
+
+      // --- 社交 (Interaction) ---
+      { id: 'i4', category: 'interaction', zh: '你好', jp: 'こんにちは', romaji: 'Konnichiwa' },
+      { id: 'i5', category: 'interaction', zh: '晚安', jp: 'こんばんは', romaji: 'Konbanwa' },
+      { id: 'i6', category: 'interaction', zh: '我從台灣來', jp: '台湾から来ました', romaji: 'Taiwan kara kimashita' },
+      { id: 'i3', category: 'interaction', zh: '不好意思，打擾了', jp: 'すみません、失礼します', romaji: 'Sumimasen, shitsurei shimasu' },
+      { id: 'i7', category: 'interaction', zh: '可以請你再幫我一次嗎？', jp: 'もう一度お願いできますか？', romaji: 'Mō ichido onegai dekimasu ka?' },
+      { id: 'i10', category: 'interaction', zh: '可以麻煩你幫我看一下嗎？', jp: 'ちょっと見てもらえますか？', romaji: 'Chotto mite moraemasu ka?' },
+      { id: 'i11', category: 'interaction', zh: '我可以問一下嗎？', jp: 'ちょっと聞いてもいいですか？', romaji: 'Chotto kiite mo ii desu ka?' },
+      { id: 'i1', category: 'interaction', zh: '可以拍照嗎？', jp: '写真いいですか？', romaji: 'Shashin ii desu ka?' },
+      { id: 'i9', category: 'interaction', zh: '我可以跟你合照嗎？', jp: '一緒に写真を撮ってもいいですか？', romaji: 'Issho ni shashin o totte mo ii desu ka?' },
+      { id: 'i2', category: 'interaction', zh: '可以幫我拍照嗎？', jp: '写真撮ってもらえますか？', romaji: 'Shashin totte moraemasu ka?' },
+
+      // --- 救援 (Emergency) ---
+      { id: 'e9', category: 'emergency', zh: '我需要幫忙', jp: '助けてください', romaji: 'Tasukete kudasai' },
+      { id: 'e6', category: 'emergency', zh: '不好意思，我迷路了', jp: '道に迷ってしまいました', romaji: 'Michi ni mayotte shimaimashita' },
+      { id: 'e10', category: 'emergency', zh: '這裡是哪裡？', jp: 'ここはどこですか？', romaji: 'Koko wa doko desu ka?' },
+      { id: 'e11', category: 'emergency', zh: '我掉了錢包／手機', jp: '財布（携帯）をなくしました', romaji: 'Saifu (Keitai) o nakushimashita' },
+      { id: 'e12', category: 'emergency', zh: '我被偷了', jp: '盗まれました', romaji: 'Nusumaremashita' },
+      { id: 'e25', category: 'emergency', zh: '我想找失物招領', jp: '忘れ物センターはどこですか？', romaji: 'Wasuremono sentā wa doko desu ka?' },
+      { id: 'e13', category: 'emergency', zh: '我想去派出所', jp: '交番に行きたいです', romaji: 'Kōban ni ikitai desu' },
+      { id: 'e7', category: 'emergency', zh: '請幫我叫警察', jp: '警察を呼んでください', romaji: 'Keisatsu o yonde kudasai' },
+      { id: 'e26', category: 'emergency', zh: '我需要報案', jp: '届け出をしたいです', romaji: 'Todokede o shitai desu' },
+      { id: 'e17', category: 'emergency', zh: '我不太會日文', jp: '日本語があまり話せません', romaji: 'Nihongo ga amari hanasemasen' },
+      { id: 'e1', category: 'emergency', zh: '我聽不太懂', jp: 'よく分かりません', romaji: 'Yoku wakarimasen' },
+      { id: 'e2', category: 'emergency', zh: '麻煩再說一次', jp: 'もう一度お願いします', romaji: 'Mō ichido onegaishimasu' },
+      { id: 'e3', category: 'emergency', zh: '請慢慢說', jp: 'ゆっくり話していただけますか？', romaji: 'Yukkuri hanashite itadakemasu ka?' },
+      { id: 'e4_copy', category: 'emergency', zh: '請幫我叫計程車(緊急)', jp: 'タクシーを呼んでください', romaji: 'Takushī o yonde kudasai' },
+      { id: 'e5', category: 'emergency', zh: '我不舒服', jp: '具合が悪いです', romaji: 'Guai ga warui desu' },
+      { id: 'e18', category: 'emergency', zh: '我頭暈', jp: 'めまいがします', romaji: 'Memai ga shimasu' },
+      { id: 'e19', category: 'emergency', zh: '我肚子痛', jp: 'お腹が痛いです', romaji: 'Onaka ga itai desu' },
+      { id: 'e20', category: 'emergency', zh: '我發燒', jp: '熱があります', romaji: 'Netsu ga arimasu' },
+      { id: 'e21', category: 'emergency', zh: '我在吃藥', jp: '薬を飲んでいます', romaji: 'Kusuri o nondeimasu' },
+      { id: 'e22', category: 'emergency', zh: '我需要醫院', jp: '病院に行きたいです', romaji: 'Byōin ni ikitai desu' },
+      { id: 'e23', category: 'emergency', zh: '請幫我叫救護車', jp: '救急車を呼んでください', romaji: 'Kyūkyūsha o yonde kudasai' },
+    ];
+
+    // --- 2. 核心工具函式 ---
+    function generateId() {
+      if (window.crypto && window.crypto.randomUUID) return window.crypto.randomUUID();
+      return 'id_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
     }
-  }, [phrases]);
 
-  useEffect(() => {
-    const updateVoices = () => {
-      const availableVoices = window.speechSynthesis.getVoices();
-      if (availableVoices.length > 0) {
-          setVoices(availableVoices);
+    function sanitizePhrases(list) {
+      if (!Array.isArray(list)) return INITIAL_PHRASES;
+      return list
+        .filter(x => x && typeof x === 'object')
+        .map(x => ({
+          id: String(x.id || generateId()),
+          category: CATEGORY_IDS.has(x.category) ? x.category : 'survival',
+          zh: String(x.zh || ''),
+          jp: String(x.jp || ''),
+          romaji: String(x.romaji || ''),
+          options: Array.isArray(x.options)
+            ? x.options
+                .filter(o => o && typeof o === 'object')
+                .map(o => ({ zh: String(o.zh || ''), jp: String(o.jp || '') }))
+                .filter(o => o.zh.trim() && o.jp.trim())
+            : undefined,
+        }))
+        .filter(x => x.zh.trim() || x.jp.trim());
+    }
+
+    const normalizeOrder = (list) => {
+      return [...list].sort((a, b) => {
+        const ia = CATEGORY_ORDER.indexOf(a.category);
+        const ib = CATEGORY_ORDER.indexOf(b.category);
+        return ia - ib;
+      });
+    };
+
+    function loadPhrasesSafe() {
+      try {
+        const saved = localStorage.getItem(STORAGE_KEY);
+        if (!saved) return INITIAL_PHRASES;
+        return sanitizePhrases(JSON.parse(saved));
+      } catch (e) {
+        console.warn('資料讀取錯誤，已重置為預設值:', e);
+        localStorage.removeItem(STORAGE_KEY);
+        return INITIAL_PHRASES;
       }
-    };
-
-    if ('speechSynthesis' in window) {
-      window.speechSynthesis.onvoiceschanged = updateVoices;
-      updateVoices();
     }
-    
-    return () => {
+
+    function LucideIcon({ name, size = 18, className = '' }) {
+      // lucide 會把帶 data-lucide 的元素替換成 svg
+      return <i data-lucide={name} width={size} height={size} className={className} />;
+    }
+
+    function App() {
+      const [phrases, setPhrases] = useState(loadPhrasesSafe);
+      const [activeCategory, setActiveCategory] = useState('survival');
+      const [selectedPhraseId, setSelectedPhraseId] = useState(null);
+      const [isSpeaking, setIsSpeaking] = useState(false);
+      const [isEditMode, setIsEditMode] = useState(false);
+      const [isAdding, setIsAdding] = useState(false);
+      const [newPhrase, setNewPhrase] = useState({ zh: '', jp: '', romaji: '', category: 'survival' });
+      const [voices, setVoices] = useState([]);
+
+      const [phraseToDelete, setPhraseToDelete] = useState(null);
+      const [inputText, setInputText] = useState('');
+      const [selectedOption, setSelectedOption] = useState(null);
+      const [isManualMode, setIsManualMode] = useState(false);
+
+      const speechTimeoutRef = useRef(null);
+      const playDelayRef = useRef(null);
+      const utteranceRef = useRef(null);
+
+      const selectedPhrase = phrases.find(p => p.id === selectedPhraseId) || null;
+
+      // 任何 render 後把 lucide icon 補上（避免 icon 空白）
+      useEffect(() => {
+        try { window.lucide?.createIcons?.(); } catch (e) {}
+      });
+
+      useEffect(() => () => stopSpeaking(), []);
+
+      useEffect(() => {
+        try { localStorage.setItem(STORAGE_KEY, JSON.stringify(phrases)); }
+        catch (e) { console.error('儲存失敗:', e); }
+      }, [phrases]);
+
+      useEffect(() => {
+        const updateVoices = () => {
+          const availableVoices = window.speechSynthesis.getVoices();
+          if (availableVoices.length > 0) setVoices(availableVoices);
+        };
         if ('speechSynthesis' in window) {
-            window.speechSynthesis.onvoiceschanged = null;
+          window.speechSynthesis.onvoiceschanged = updateVoices;
+          updateVoices();
         }
-    };
-  }, []);
+        return () => {
+          if ('speechSynthesis' in window) window.speechSynthesis.onvoiceschanged = null;
+        };
+      }, []);
 
-  useEffect(() => {
-    if (selectedPhraseId) {
-      setInputText('');
-      setSelectedOption(null);
-      setIsManualMode(false);
-    }
-  }, [selectedPhraseId]);
-
-  // --- Functions ---
-
-  // 統一停止發音邏輯
-  const stopSpeaking = () => {
-    try { window.speechSynthesis?.cancel?.(); } catch (e) {}
-    if (speechTimeoutRef.current) clearTimeout(speechTimeoutRef.current);
-    if (playDelayRef.current) clearTimeout(playDelayRef.current);
-    utteranceRef.current = null;
-    setIsSpeaking(false);
-  };
-
-  const closeModal = () => {
-    setSelectedPhraseId(null);
-    setInputText('');
-    setSelectedOption(null);
-    stopSpeaking();
-  };
-
-  const handleDeleteClick = (id) => {
-    setPhraseToDelete(id);
-  };
-
-  const confirmDelete = () => {
-    if (phraseToDelete) {
-      setPhrases(prev => prev.filter(p => p.id !== phraseToDelete));
-      setPhraseToDelete(null);
-    }
-  };
-
-  const cancelDelete = () => {
-    setPhraseToDelete(null);
-  };
-
-  const speak = (text) => {
-    if (!('speechSynthesis' in window) || !('SpeechSynthesisUtterance' in window)) {
-      alert("您的裝置不支援語音播放功能。");
-      return;
-    }
-
-    const synth = window.speechSynthesis;
-    
-    // 如果正在說話，則停止並在短暫延遲後播放新語音 (切歌效果)
-    if (isSpeaking) {
-      stopSpeaking();
-      setTimeout(() => speak(text), 50);
-      return;
-    }
-
-    if (synth.paused) {
-      synth.resume();
-    }
-    
-    let textToSpeak = text;
-    // 如果有選項被選中，這裡的 text 已經是替換好的，不需要再處理 inputText
-    // 但如果是手動輸入模式，則需要處理
-    if (text.includes('___')) {
-       // 保險起見，如果還殘留 ___，嘗試用 inputText 替換 (針對純手動模式)
-       const filler = inputText.trim() !== '' ? inputText.trim() : '...';
-       textToSpeak = text.replace('___', filler);
-    }
-
-    // 重置之前的計時器
-    if (playDelayRef.current) clearTimeout(playDelayRef.current);
-    if (speechTimeoutRef.current) clearTimeout(speechTimeoutRef.current);
-
-    try { synth.cancel(); } catch (e) {}
-
-    const pickVoice = () => {
-        let available = voices;
-        if (!available || available.length === 0) {
-            available = synth.getVoices();
+      useEffect(() => {
+        if (selectedPhraseId) {
+          setInputText('');
+          setSelectedOption(null);
+          setIsManualMode(false);
         }
-        return available.find(v => v.name.includes('Google') && v.lang === 'ja-JP') ||
-               available.find(v => v.lang === 'ja-JP') ||
-               available.find(v => v.lang.startsWith('ja')) ||
-               null;
-    };
+      }, [selectedPhraseId]);
 
-    // 內部輔助函式：執行實際的 speak 呼叫
-    const attemptSpeak = (retryWithDefault = false) => {
-        // 關鍵修正：在嘗試播放前，先強制取消之前的播放，重置引擎狀態
-        window.speechSynthesis.cancel();
+      const stopSpeaking = () => {
+        try { window.speechSynthesis?.cancel?.(); } catch (e) {}
+        if (speechTimeoutRef.current) clearTimeout(speechTimeoutRef.current);
+        if (playDelayRef.current) clearTimeout(playDelayRef.current);
+        utteranceRef.current = null;
+        setIsSpeaking(false);
+      };
 
-        const utterance = new SpeechSynthesisUtterance(textToSpeak);
-        utterance.lang = 'ja-JP';
-        utterance.rate = 0.9;
+      const closeModal = () => {
+        setSelectedPhraseId(null);
+        setInputText('');
+        setSelectedOption(null);
+        stopSpeaking();
+      };
 
-        if (!retryWithDefault) {
-            const v = pickVoice();
-            if (v) utterance.voice = v;
+      const handleDeleteClick = (id) => setPhraseToDelete(id);
+
+      const confirmDelete = () => {
+        if (phraseToDelete) {
+          setPhrases(prev => prev.filter(p => p.id !== phraseToDelete));
+          setPhraseToDelete(null);
+        }
+      };
+
+      const cancelDelete = () => setPhraseToDelete(null);
+
+      const speak = (text) => {
+        if (!('speechSynthesis' in window) || !('SpeechSynthesisUtterance' in window)) {
+          alert("您的裝置不支援語音播放功能。");
+          return;
         }
 
-        utteranceRef.current = utterance;
+        const synth = window.speechSynthesis;
 
-        const timeoutDuration = Math.min(Math.max(6000, textToSpeak.length * 250), 15000);
+        if (isSpeaking) {
+          stopSpeaking();
+          setTimeout(() => speak(text), 50);
+          return;
+        }
 
-        speechTimeoutRef.current = window.setTimeout(() => {
-            if (window.speechSynthesis.speaking) {
-                stopSpeaking();
-            }
-        }, timeoutDuration);
+        if (synth.paused) synth.resume();
 
-        utterance.onstart = () => setIsSpeaking(true);
-        utterance.onend = () => stopSpeaking();
-        
-        utterance.onerror = (e) => {
-            // 過濾掉被使用者中斷或取消的錯誤
-            if (e.error === 'interrupted' || e.error === 'canceled') {
-                stopSpeaking();
-                return;
-            }
+        let textToSpeak = text;
+        if (text.includes('___')) {
+          const filler = inputText.trim() !== '' ? inputText.trim() : '...';
+          textToSpeak = text.replace('___', filler);
+        }
 
-            // 第一次失敗時：記錄警告，重置引擎，並嘗試使用預設語音重試
-            if (!retryWithDefault) {
-                console.warn(`Speech synthesis error (${e.error}). Retrying with system default...`);
-                // 再次取消以確保乾淨的狀態
-                window.speechSynthesis.cancel();
-                
-                // 增加延遲時間讓引擎有時間恢復 (50ms -> 100ms)
-                setTimeout(() => attemptSpeak(true), 100);
-            } else {
-                // 重試後仍然失敗，才顯示錯誤
-                console.error("Speech synthesis failed permanently:", e.error);
-                stopSpeaking();
-                // 在這裡可以加入 alert，但為了避免干擾使用者，暫時只顯示 console error
-            }
+        if (playDelayRef.current) clearTimeout(playDelayRef.current);
+        if (speechTimeoutRef.current) clearTimeout(speechTimeoutRef.current);
+
+        try { synth.cancel(); } catch (e) {}
+
+        const pickVoice = () => {
+          let available = voices;
+          if (!available || available.length === 0) available = synth.getVoices();
+          return (
+            available.find(v => v.name.includes('Google') && v.lang === 'ja-JP') ||
+            available.find(v => v.lang === 'ja-JP') ||
+            available.find(v => v.lang.startsWith('ja')) ||
+            null
+          );
         };
 
-        synth.speak(utterance);
-    };
+        const attemptSpeak = (retryWithDefault = false) => {
+          window.speechSynthesis.cancel();
 
-    playDelayRef.current = setTimeout(() => {
-        attemptSpeak(false);
-    }, 50); 
-  };
+          const utterance = new SpeechSynthesisUtterance(textToSpeak);
+          utterance.lang = 'ja-JP';
+          utterance.rate = 0.9;
 
-  const movePhrase = (currentIndex, direction) => {
-    const filtered = phrases.filter(p => p.category === activeCategory);
-    if (direction === 'up' && currentIndex === 0) return;
-    if (direction === 'down' && currentIndex === filtered.length - 1) return;
+          if (!retryWithDefault) {
+            const v = pickVoice();
+            if (v) utterance.voice = v;
+          }
 
-    const targetIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1;
-    const itemA = filtered[currentIndex];
-    const itemB = filtered[targetIndex];
+          utteranceRef.current = utterance;
 
-    const globalIndexA = phrases.findIndex(p => p.id === itemA.id);
-    const globalIndexB = phrases.findIndex(p => p.id === itemB.id);
+          const timeoutDuration = Math.min(Math.max(6000, textToSpeak.length * 250), 15000);
+          speechTimeoutRef.current = window.setTimeout(() => {
+            if (window.speechSynthesis.speaking) stopSpeaking();
+          }, timeoutDuration);
 
-    setPhrases(prev => {
-      const newPhrases = [...prev];
-      // 交換位置
-      const temp = newPhrases[globalIndexA];
-      newPhrases[globalIndexA] = newPhrases[globalIndexB];
-      newPhrases[globalIndexB] = temp;
-      
-      // 交換後，再執行一次 Normalize 確保大分類順序正確 (但保留剛交換的相對順序)
-      return normalizeOrder(newPhrases);
-    });
-  };
+          utterance.onstart = () => setIsSpeaking(true);
+          utterance.onend = () => stopSpeaking();
 
-  const guessCategory = (text) => {
-    for (const [cat, words] of Object.entries(CATEGORY_KEYWORDS)) {
-      if (words.some(w => text.includes(w))) return cat;
-    }
-    return activeCategory;
-  };
+          utterance.onerror = (e) => {
+            if (e.error === 'interrupted' || e.error === 'canceled') {
+              stopSpeaking();
+              return;
+            }
+            if (!retryWithDefault) {
+              console.warn(`Speech synthesis error (${e.error}). Retrying with system default...`);
+              window.speechSynthesis.cancel();
+              setTimeout(() => attemptSpeak(true), 100);
+            } else {
+              console.error("Speech synthesis failed permanently:", e.error);
+              stopSpeaking();
+            }
+          };
 
-  const handleNewPhraseChange = (field, value) => {
-    let updatedPhrase = { ...newPhrase, [field]: value };
-    if (field === 'zh') {
-      updatedPhrase.category = guessCategory(value);
-    }
-    setNewPhrase(updatedPhrase);
-  };
+          synth.speak(utterance);
+        };
 
-  const handleAddSubmit = (e) => {
-    e.preventDefault();
-    const cleanZh = newPhrase.zh.trim();
-    const cleanJp = newPhrase.jp.trim();
-    const cleanRomaji = newPhrase.romaji.trim();
+        playDelayRef.current = setTimeout(() => attemptSpeak(false), 50);
+      };
 
-    if (!cleanZh || !cleanJp) {
-      alert('中文和日文是必填欄位，且不能只有空白喔！');
-      return;
-    }
+      const movePhrase = (currentIndex, direction) => {
+        const filtered = phrases.filter(p => p.category === activeCategory);
+        if (direction === 'up' && currentIndex === 0) return;
+        if (direction === 'down' && currentIndex === filtered.length - 1) return;
 
-    if ((cleanJp.match(/___/g) || []).length > 1) {
-      alert('抱歉，目前每句話只支援一個填空 (___) 喔！');
-      return;
-    }
+        const targetIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1;
+        const itemA = filtered[currentIndex];
+        const itemB = filtered[targetIndex];
 
-    const newItem = {
-      id: generateId(),
-      zh: cleanZh,
-      jp: cleanJp,
-      romaji: cleanRomaji || '',
-      category: newPhrase.category
-    };
+        const globalIndexA = phrases.findIndex(p => p.id === itemA.id);
+        const globalIndexB = phrases.findIndex(p => p.id === itemB.id);
 
-    setPhrases(prev => {
-        const updated = [...prev, newItem];
-        return normalizeOrder(updated);
-    });
-    setIsAdding(false);
-    setNewPhrase({ zh: '', jp: '', romaji: '', category: 'survival' });
-    setActiveCategory(newItem.category);
-    alert('新增成功！');
-  };
+        setPhrases(prev => {
+          const newPhrases = [...prev];
+          const temp = newPhrases[globalIndexA];
+          newPhrases[globalIndexA] = newPhrases[globalIndexB];
+          newPhrases[globalIndexB] = temp;
+          return normalizeOrder(newPhrases);
+        });
+      };
 
-  const openGoogleTranslate = () => {
-    const text = newPhrase.zh;
-    if (!text) return;
-    const url = `https://translate.google.com/?sl=zh-TW&tl=ja&text=${encodeURIComponent(text)}&op=translate`;
-    window.open(url, '_blank');
-  };
-
-  const filteredPhrases = phrases.filter(p => p.category === activeCategory);
-  const currentCategoryInfo = CATEGORIES.find(c => c.id === activeCategory);
-  
-  // 為了 Render 優化，預先計算
-  const templateParts = selectedPhrase?.jp?.split('___');
-  const isTemplate = templateParts && templateParts.length > 1;
-  const hasOptions = selectedPhrase?.options && selectedPhrase.options.length > 0;
-
-  // 決定當前顯示的日文 (邏輯：優先用選中的選項替換，否則顯示模板)
-  let displayJp = selectedPhrase?.jp || '';
-  if (isTemplate) {
-    if (hasOptions && !isManualMode) {
-      // 選項模式：如果有選中，就替換；沒有選中，顯示 ___
-      displayJp = selectedOption 
-        ? selectedPhrase.jp.replace('___', selectedOption.jp)
-        : selectedPhrase.jp; 
-    } else {
-      // 手動模式：顯示 Input (在 JSX 處理)，這裡只計算非 Input 部分的字串給 speak 用
-      // 注意：這裡的 displayJp 主要給 speak 使用時需要是完整句子
-      // 但在 JSX render 時我們是用 templateParts 切割
-    }
-  }
-
-  // 處理點擊選項
-  const handleOptionClick = (option) => {
-    setSelectedOption(option);
-    // 立即播放
-    const finalText = selectedPhrase.jp.replace('___', option.jp);
-    speak(finalText);
-  };
-
-  return (
-    <div className="min-h-screen bg-[#fdfbf7] text-stone-700 font-sans selection:bg-rose-100 pb-20 overflow-x-hidden">
-      {/* 注入全域 CSS 以隱藏 scrollbar */}
-      <style>{`
-        .no-scrollbar::-webkit-scrollbar {
-          width: 0;
-          height: 0;
-          display: none;
+      const guessCategory = (text) => {
+        for (const [cat, words] of Object.entries(CATEGORY_KEYWORDS)) {
+          if (words.some(w => text.includes(w))) return cat;
         }
-        .no-scrollbar {
-          -ms-overflow-style: none;  /* IE/Edge legacy */
-          scrollbar-width: none;     /* Firefox */
+        return activeCategory;
+      };
+
+      const handleNewPhraseChange = (field, value) => {
+        let updated = { ...newPhrase, [field]: value };
+        if (field === 'zh') updated.category = guessCategory(value);
+        setNewPhrase(updated);
+      };
+
+      const handleAddSubmit = (e) => {
+        e.preventDefault();
+        const cleanZh = newPhrase.zh.trim();
+        const cleanJp = newPhrase.jp.trim();
+        const cleanRomaji = newPhrase.romaji.trim();
+
+        if (!cleanZh || !cleanJp) {
+          alert('中文和日文是必填欄位，且不能只有空白喔！');
+          return;
         }
-      `}</style>
+        if ((cleanJp.match(/___/g) || []).length > 1) {
+          alert('抱歉，目前每句話只支援一個填空 (___) 喔！');
+          return;
+        }
 
-      {/* 頂部標題與工具列 */}
-      <header className="sticky top-0 z-10 bg-[#fdfbf7]/95 backdrop-blur-sm border-b border-stone-200 shadow-sm transition-all w-full overflow-x-hidden">
-        <div className="max-w-md mx-auto px-4 py-3 flex items-center justify-between gap-4">
-          <div onClick={() => {setIsEditMode(false); setIsAdding(false);}} className="cursor-pointer flex-1 min-w-0">
-            <h1 className="text-xl font-bold tracking-tight text-stone-800 flex items-center gap-2 truncate">
-              {/* 標題顏色改為帶點灰色調的淡紅 */}
-              <span className="text-[#d68585] flex-shrink-0">旅日一句通</span>
-              <span className="text-stone-400 font-normal text-sm hidden sm:inline truncate">｜點了就會說</span>
-            </h1>
-          </div>
-          <div className="flex gap-2 flex-shrink-0">
-            <button 
-              onClick={() => setIsEditMode(!isEditMode)} 
-              className={`p-2 rounded-full transition-colors flex items-center gap-1 ${isEditMode ? 'bg-rose-50 text-rose-500' : 'text-stone-400 hover:bg-stone-100'}`}
-              title={isEditMode ? "完成編輯" : "編輯順序"}
-            >
-              {isEditMode ? <Check size={20} /> : <Edit3 size={20} />}
-            </button>
-            {/* 新增按鈕：降權重，改為素雅風格 */}
-            <button 
-              onClick={() => setIsAdding(true)} 
-              className="p-2 rounded-full bg-white border border-stone-200 text-stone-500 shadow-sm hover:bg-stone-50 transition-colors"
-              title="新增語句"
-            >
-              <Plus size={20} />
-            </button>
-          </div>
-        </div>
+        const newItem = {
+          id: generateId(),
+          zh: cleanZh,
+          jp: cleanJp,
+          romaji: cleanRomaji || '',
+          category: newPhrase.category
+        };
 
-        {/* 分類導航 */}
-        <div className="relative max-w-md mx-auto px-2 pb-2 overflow-hidden">
-          {/* 左右漸層提示：更換為全版面遮罩，暗示可捲動 */}
-          <div className="pointer-events-none absolute inset-y-0 left-0 w-8 bg-gradient-to-r from-[#fdfbf7] to-transparent z-10" />
-          <div className="pointer-events-none absolute inset-y-0 right-0 w-8 bg-gradient-to-l from-[#fdfbf7] to-transparent z-10" />
+        setPhrases(prev => normalizeOrder([...prev, newItem]));
+        setIsAdding(false);
+        setNewPhrase({ zh: '', jp: '', romaji: '', category: 'survival' });
+        setActiveCategory(newItem.category);
+        alert('新增成功！');
+      };
 
-          {/* 內層 scroll container */}
-          <div className="overflow-x-auto no-scrollbar flex gap-2 px-2" style={{ WebkitOverflowScrolling: 'touch' }}>
-            {CATEGORIES.map((cat) => (
-              <button
-                key={cat.id}
-                onClick={() => setActiveCategory(cat.id)}
-                className={`
-                  flex items-center gap-1.5 px-4 py-2 rounded-full whitespace-nowrap text-sm font-medium transition-all duration-200 flex-shrink-0
-                  ${activeCategory === cat.id 
-                    ? `${cat.activeClass} border shadow-sm` 
-                    : 'bg-white text-stone-500 border border-stone-200 hover:bg-stone-50'}
-                `}
-              >
-                {cat.icon}
-                {cat.name}
-              </button>
-            ))}
-          </div>
-        </div>
-      </header>
+      const openGoogleTranslate = () => {
+        const text = newPhrase.zh;
+        if (!text) return;
+        const url = `https://translate.google.com/?sl=zh-TW&tl=ja&text=${encodeURIComponent(text)}&op=translate`;
+        window.open(url, '_blank');
+      };
 
-      {/* 主要列表 */}
-      <main className="max-w-md mx-auto p-4">
-        <div className="mb-4 flex items-center justify-between text-stone-400 text-sm">
-          <div className="flex items-center gap-2">
-            <span>{currentCategoryInfo?.name}</span>
-            <span className="w-1 h-1 bg-stone-300 rounded-full"></span>
-            <span>共 {filteredPhrases.length} 句</span>
-          </div>
-          {isEditMode && <span className="text-rose-400 font-medium text-xs animate-pulse">編輯模式</span>}
-        </div>
+      const filteredPhrases = phrases.filter(p => p.category === activeCategory);
+      const currentCategoryInfo = CATEGORIES.find(c => c.id === activeCategory);
 
-        <div className="grid gap-3">
-          {filteredPhrases.map((phrase, index) => (
-            <div key={phrase.id} className="relative group">
-              {/* 一般卡片 */}
-              <button 
-                onClick={() => !isEditMode && setSelectedPhraseId(phrase.id)}
-                className={`
-                  w-full bg-white p-4 rounded-2xl border shadow-sm transition-all text-left flex justify-between items-start
-                  ${isEditMode ? 'border-stone-200 pl-12' : 'border-stone-100 hover:shadow-md hover:border-rose-100 active:scale-[0.99]'}
-                `}
-              >
-                <div className="flex-1 min-w-0">
-                  {/* 中文放大至 text-base */}
-                  <h3 className="text-stone-800 font-bold text-xl mb-1 truncate flex items-center gap-2">
-                    {phrase.zh}
-                    {phrase.jp.includes('___') && <PenLine size={14} className="text-rose-300" />}
-                  </h3>
-                  {/* 日文放大至 text-2xl */}
-                  <p className="text-rose-500/80 text-sm font-medium mb-0.5 truncate">{phrase.jp}</p>
-                  {/* 羅馬拼音放大至 text-sm */}
-                  <p className="text-stone-400 text-sm font-light truncate font-mono">{phrase.romaji}</p>
-                </div>
-                {!isEditMode && (
-                  <div className="mt-2 text-stone-200 group-hover:text-rose-300 transition-colors">
-                    <ChevronRight size={20} />
-                  </div>
-                )}
-              </button>
+      const templateParts = selectedPhrase?.jp?.split('___');
+      const isTemplate = templateParts && templateParts.length > 1;
+      const hasOptions = selectedPhrase?.options && selectedPhrase.options.length > 0;
 
-              {/* 編輯模式控制項 */}
-              {isEditMode && (
-                <>
-                  <div className="absolute left-2 top-1/2 -translate-y-1/2 flex flex-col gap-1">
-                    <button 
-                      onClick={(e) => { e.stopPropagation(); movePhrase(index, 'up'); }}
-                      disabled={index === 0}
-                      className="p-3 text-stone-400 hover:text-rose-400 disabled:opacity-20 z-10 cursor-pointer"
-                    >
-                      <ArrowUp size={18} />
-                    </button>
-                    <button 
-                      onClick={(e) => { e.stopPropagation(); movePhrase(index, 'down'); }}
-                      disabled={index === filteredPhrases.length - 1}
-                      className="p-3 text-stone-400 hover:text-rose-400 disabled:opacity-20 z-10 cursor-pointer"
-                    >
-                      <ArrowDown size={18} />
-                    </button>
-                  </div>
-                  <button 
-                    onClick={(e) => { e.stopPropagation(); handleDeleteClick(phrase.id); }}
-                    className="absolute right-4 top-1/2 -translate-y-1/2 p-2 bg-stone-50 text-stone-400 rounded-full hover:bg-rose-50 hover:text-rose-500 transition-colors z-10 cursor-pointer"
+      const handleOptionClick = (option) => {
+        setSelectedOption(option);
+        const finalText = selectedPhrase.jp.replace('___', option.jp);
+        speak(finalText);
+      };
+
+      return (
+        <div className="min-h-screen bg-[#fdfbf7] text-stone-700 font-sans selection:bg-rose-100 pb-20 overflow-x-hidden">
+          {/* 頂部標題與工具列 */}
+          <header className="sticky top-0 z-10 bg-[#fdfbf7]/95 backdrop-blur-sm border-b border-stone-200 shadow-sm transition-all w-full overflow-x-hidden">
+            <div className="max-w-md mx-auto px-4 py-3 flex items-center justify-between gap-4">
+              <div onClick={() => {setIsEditMode(false); setIsAdding(false);}} className="cursor-pointer flex-1 min-w-0">
+                <h1 className="text-xl font-bold tracking-tight text-stone-800 flex items-center gap-2 truncate">
+                  <span className="text-[#d68585] flex-shrink-0">旅日一句通</span>
+                  <span className="text-stone-400 font-normal text-sm hidden sm:inline truncate">｜點了就會說</span>
+                </h1>
+              </div>
+              <div className="flex gap-2 flex-shrink-0">
+                <button
+                  onClick={() => setIsEditMode(!isEditMode)}
+                  className={`p-2 rounded-full transition-colors flex items-center gap-1 ${isEditMode ? 'bg-rose-50 text-rose-500' : 'text-stone-400 hover:bg-stone-100'}`}
+                  title={isEditMode ? "完成編輯" : "編輯順序"}
+                >
+                  {isEditMode ? <LucideIcon name="check" size={20} /> : <LucideIcon name="edit-3" size={20} />}
+                </button>
+                <button
+                  onClick={() => setIsAdding(true)}
+                  className="p-2 rounded-full bg-white border border-stone-200 text-stone-500 shadow-sm hover:bg-stone-50 transition-colors"
+                  title="新增語句"
+                >
+                  <LucideIcon name="plus" size={20} />
+                </button>
+              </div>
+            </div>
+
+            {/* 分類導航 */}
+            <div className="relative max-w-md mx-auto px-2 pb-2 overflow-hidden">
+              <div className="pointer-events-none absolute inset-y-0 left-0 w-8 bg-gradient-to-r from-[#fdfbf7] to-transparent z-10" />
+              <div className="pointer-events-none absolute inset-y-0 right-0 w-8 bg-gradient-to-l from-[#fdfbf7] to-transparent z-10" />
+
+              <div className="overflow-x-auto no-scrollbar flex gap-2 px-2" style={{ WebkitOverflowScrolling: 'touch' }}>
+                {CATEGORIES.map((cat) => (
+                  <button
+                    key={cat.id}
+                    onClick={() => setActiveCategory(cat.id)}
+                    className={`
+                      flex items-center gap-1.5 px-4 py-2 rounded-full whitespace-nowrap text-sm font-medium transition-all duration-200 flex-shrink-0
+                      ${activeCategory === cat.id
+                        ? `${cat.activeClass} border shadow-sm`
+                        : 'bg-white text-stone-500 border border-stone-200 hover:bg-stone-50'}
+                    `}
                   >
-                    <Trash2 size={18} />
+                    <LucideIcon name={cat.icon} size={18} />
+                    {cat.name}
                   </button>
-                </>
+                ))}
+              </div>
+            </div>
+          </header>
+
+          {/* 主要列表 */}
+          <main className="max-w-md mx-auto p-4">
+            <div className="mb-4 flex items-center justify-between text-stone-400 text-sm">
+              <div className="flex items-center gap-2">
+                <span>{currentCategoryInfo?.name}</span>
+                <span className="w-1 h-1 bg-stone-300 rounded-full"></span>
+                <span>共 {filteredPhrases.length} 句</span>
+              </div>
+              {isEditMode && <span className="text-rose-400 font-medium text-xs animate-pulse">編輯模式</span>}
+            </div>
+
+            <div className="grid gap-3">
+              {filteredPhrases.map((phrase, index) => (
+                <div key={phrase.id} className="relative group">
+                  <button
+                    onClick={() => !isEditMode && setSelectedPhraseId(phrase.id)}
+                    className={`
+                      w-full bg-white p-4 rounded-2xl border shadow-sm transition-all text-left flex justify-between items-start
+                      ${isEditMode ? 'border-stone-200 pl-12' : 'border-stone-100 hover:shadow-md hover:border-rose-100 active:scale-[0.99]'}
+                    `}
+                  >
+                    <div className="flex-1 min-w-0">
+                      <h3 className="text-stone-800 font-bold text-xl mb-1 truncate flex items-center gap-2">
+                        {phrase.zh}
+                        {phrase.jp.includes('___') && <LucideIcon name="pen-line" size={14} className="text-rose-300" />}
+                      </h3>
+                      <p className="text-rose-500/80 text-sm font-medium mb-0.5 truncate">{phrase.jp}</p>
+                      <p className="text-stone-400 text-sm font-light truncate font-mono">{phrase.romaji}</p>
+                    </div>
+                    {!isEditMode && (
+                      <div className="mt-2 text-stone-200 group-hover:text-rose-300 transition-colors">
+                        <LucideIcon name="chevron-right" size={20} />
+                      </div>
+                    )}
+                  </button>
+
+                  {isEditMode && (
+                    <>
+                      <div className="absolute left-2 top-1/2 -translate-y-1/2 flex flex-col gap-1">
+                        <button
+                          onClick={(e) => { e.stopPropagation(); movePhrase(index, 'up'); }}
+                          disabled={index === 0}
+                          className="p-3 text-stone-400 hover:text-rose-400 disabled:opacity-20 z-10 cursor-pointer"
+                        >
+                          <LucideIcon name="arrow-up" size={18} />
+                        </button>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); movePhrase(index, 'down'); }}
+                          disabled={index === filteredPhrases.length - 1}
+                          className="p-3 text-stone-400 hover:text-rose-400 disabled:opacity-20 z-10 cursor-pointer"
+                        >
+                          <LucideIcon name="arrow-down" size={18} />
+                        </button>
+                      </div>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); handleDeleteClick(phrase.id); }}
+                        className="absolute right-4 top-1/2 -translate-y-1/2 p-2 bg-stone-50 text-stone-400 rounded-full hover:bg-rose-50 hover:text-rose-500 transition-colors z-10 cursor-pointer"
+                      >
+                        <LucideIcon name="trash-2" size={18} />
+                      </button>
+                    </>
+                  )}
+                </div>
+              ))}
+
+              {filteredPhrases.length === 0 && (
+                <div className="text-center py-10 text-stone-400">
+                  <LucideIcon name="book-open" size={48} className="mx-auto text-stone-200 mb-4" />
+                  <p>這個分類還沒有語句哦</p>
+                  <button onClick={() => setIsAdding(true)} className="mt-2 text-rose-400 underline hover:text-rose-500">
+                    新增一句
+                  </button>
+                </div>
               )}
             </div>
-          ))}
+          </main>
 
-          {filteredPhrases.length === 0 && (
-            <div className="text-center py-10 text-stone-400">
-              <BookOpen size={48} className="mx-auto text-stone-200 mb-4" />
-              <p>這個分類還沒有語句哦</p>
-              <button onClick={() => setIsAdding(true)} className="mt-2 text-rose-400 underline hover:text-rose-500">
-                新增一句
-              </button>
+          {/* 新增語句 Modal */}
+          {isAdding && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+              <div className="absolute inset-0 bg-stone-900/40 backdrop-blur-sm" onClick={() => setIsAdding(false)}></div>
+              <div className="relative z-10 bg-white w-full max-w-sm rounded-2xl shadow-xl overflow-hidden animate-in zoom-in-95 duration-200">
+                <div className="p-4 border-b border-stone-100 flex justify-between items-center bg-stone-50/50">
+                  <h2 className="font-bold text-stone-700 flex items-center gap-2">新增語句</h2>
+                  <button onClick={() => setIsAdding(false)} className="text-stone-400 hover:text-stone-600">
+                    <LucideIcon name="x" size={20} />
+                  </button>
+                </div>
+                <form onSubmit={handleAddSubmit} className="p-6 space-y-5">
+                  <div>
+                    <label className="block text-xs font-medium text-stone-500 mb-1.5">中文 (必填)</label>
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        value={newPhrase.zh}
+                        onChange={(e) => handleNewPhraseChange('zh', e.target.value)}
+                        placeholder="例如：這個多少錢？"
+                        className="flex-1 w-full p-3 bg-stone-50 border border-stone-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-rose-100 focus:border-rose-300 transition-all text-stone-700"
+                        required
+                      />
+                      {newPhrase.zh && (
+                        <button
+                          type="button"
+                          onClick={openGoogleTranslate}
+                          className="p-3 bg-white border border-stone-200 text-stone-500 rounded-xl hover:bg-stone-50 transition-colors"
+                        >
+                          <LucideIcon name="languages" size={20} />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-stone-500 mb-1.5">日文 (必填)</label>
+                    <div className="space-y-1">
+                      <input
+                        type="text"
+                        value={newPhrase.jp}
+                        onChange={(e) => handleNewPhraseChange('jp', e.target.value)}
+                        placeholder="例如：これはいくらですか？"
+                        className="w-full p-3 bg-stone-50 border border-stone-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-rose-100 focus:border-rose-300 transition-all font-medium text-stone-700"
+                        required
+                      />
+                      <p className="text-[10px] text-stone-400 pl-1">* 填空請輸入三個底線 "___"</p>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-stone-500 mb-1.5">羅馬拼音 (選填)</label>
+                    <input
+                      type="text"
+                      value={newPhrase.romaji}
+                      onChange={(e) => handleNewPhraseChange('romaji', e.target.value)}
+                      placeholder="例如：Kore wa ikura desu ka?"
+                      className="w-full p-3 bg-stone-50 border border-stone-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-rose-100 focus:border-rose-300 transition-all text-stone-700"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-stone-500 mb-1.5">分類</label>
+                    <div className="relative">
+                      <select
+                        value={newPhrase.category}
+                        onChange={(e) => handleNewPhraseChange('category', e.target.value)}
+                        className="w-full p-3 bg-stone-50 border border-stone-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-rose-100 focus:border-rose-300 appearance-none text-stone-700"
+                      >
+                        {CATEGORIES.map(cat => (
+                          <option key={cat.id} value={cat.id}>{cat.name}</option>
+                        ))}
+                      </select>
+                      <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-stone-400">
+                        <LucideIcon name="chevron-right" size={16} className="rotate-90" />
+                      </div>
+                    </div>
+                  </div>
+                  <button
+                    type="submit"
+                    className="w-full py-3.5 bg-rose-400 text-white rounded-xl font-bold hover:bg-rose-500 shadow-sm hover:shadow-md active:scale-[0.98] transition-all mt-2"
+                  >
+                    加入列表
+                  </button>
+                </form>
+              </div>
             </div>
           )}
-        </div>
-      </main>
 
-      {/* 新增語句 Modal */}
-      {isAdding && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-stone-900/40 backdrop-blur-sm" onClick={() => setIsAdding(false)}></div>
-          <div className="relative z-10 bg-white w-full max-w-sm rounded-2xl shadow-xl overflow-hidden animate-in zoom-in-95 duration-200">
-            <div className="p-4 border-b border-stone-100 flex justify-between items-center bg-stone-50/50">
-              <h2 className="font-bold text-stone-700 flex items-center gap-2">
-                新增語句
-              </h2>
-              <button onClick={() => setIsAdding(false)} className="text-stone-400 hover:text-stone-600">
-                <X size={20} />
-              </button>
+          {/* 刪除確認 Modal */}
+          {phraseToDelete && (
+            <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+              <div className="absolute inset-0 bg-stone-900/40 backdrop-blur-sm" onClick={cancelDelete}></div>
+              <div className="relative z-10 bg-white w-full max-w-xs rounded-2xl shadow-xl overflow-hidden p-6 animate-in zoom-in-95 duration-200 text-center">
+                <div className="mx-auto w-12 h-12 bg-stone-100 rounded-full flex items-center justify-center mb-4">
+                  <LucideIcon name="trash-2" size={24} className="text-stone-400" />
+                </div>
+                <h3 className="text-lg font-bold text-stone-800 mb-2">確定要刪除嗎？</h3>
+                <p className="text-sm text-stone-500 mb-6">刪除後無法復原。</p>
+                <div className="flex gap-3">
+                  <button
+                    onClick={cancelDelete}
+                    className="flex-1 py-3 bg-stone-50 text-stone-600 rounded-xl font-medium hover:bg-stone-100 transition-colors"
+                  >
+                    取消
+                  </button>
+                  <button
+                    onClick={confirmDelete}
+                    className="flex-1 py-3 bg-rose-400 text-white rounded-xl font-medium hover:bg-rose-500 shadow-sm transition-colors"
+                  >
+                    刪除
+                  </button>
+                </div>
+              </div>
             </div>
-            <form onSubmit={handleAddSubmit} className="p-6 space-y-5">
-              <div>
-                <label className="block text-xs font-medium text-stone-500 mb-1.5">中文 (必填)</label>
-                <div className="flex gap-2">
-                  <input 
-                    type="text" 
-                    value={newPhrase.zh} 
-                    onChange={(e) => handleNewPhraseChange('zh', e.target.value)}
-                    placeholder="例如：這個多少錢？"
-                    className="flex-1 w-full p-3 bg-stone-50 border border-stone-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-rose-100 focus:border-rose-300 transition-all text-stone-700"
-                    required
-                  />
-                  {newPhrase.zh && (
-                    <button 
-                      type="button"
-                      onClick={openGoogleTranslate}
-                      className="p-3 bg-white border border-stone-200 text-stone-500 rounded-xl hover:bg-stone-50 transition-colors"
-                    >
-                      <Languages size={20} />
-                    </button>
+          )}
+
+          {/* 全螢幕詳細卡片 (Modal) */}
+          {selectedPhrase && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+              <div
+                className="absolute inset-0 bg-stone-900/40 backdrop-blur-sm animate-in fade-in duration-200 cursor-pointer"
+                onClick={closeModal}
+              ></div>
+
+              <div
+                className="relative z-10 bg-white w-full max-w-sm rounded-3xl shadow-2xl overflow-hidden flex flex-col animate-in zoom-in-95 duration-200"
+                style={{ minHeight: '60vh', maxHeight: '90vh' }}
+                onClick={(e) => e.stopPropagation()}
+              >
+                <button
+                  onClick={closeModal}
+                  className="absolute top-4 right-4 p-2 bg-stone-50 rounded-full text-stone-400 hover:bg-stone-100 transition-colors z-10"
+                >
+                  <LucideIcon name="x" size={24} />
+                </button>
+
+                <div className="flex-1 flex flex-col items-center justify-center p-8 text-center space-y-6 overflow-y-auto">
+                  <div className="space-y-2">
+                    <span className="px-3 py-1 bg-stone-100 text-stone-500 text-xs rounded-full">中文意思</span>
+                    <h2 className="text-2xl font-bold text-stone-700 leading-tight">{selectedPhrase.zh}</h2>
+                  </div>
+
+                  <div className="w-12 h-1 bg-stone-100 rounded-full"></div>
+
+                  <div className="space-y-4 w-full">
+                    <span className="px-3 py-1 bg-stone-50 text-stone-400 text-xs rounded-full border border-stone-100">請指給對方看</span>
+
+                    {isTemplate ? (
+                      <div className="mb-4">
+                        <p className="text-4xl sm:text-5xl font-bold text-stone-800 leading-snug break-words">
+                          {templateParts[0]}
+
+                          {(hasOptions && !isManualMode) ? (
+                            <span className="text-rose-500 border-b-2 border-rose-500 px-2 mx-1">
+                              {selectedOption ? selectedOption.jp : '___'}
+                            </span>
+                          ) : (
+                            <input
+                              type="text"
+                              value={inputText}
+                              onChange={(e) => setInputText(e.target.value)}
+                              placeholder="輸入..."
+                              className="inline-block border-b-2 border-rose-300 text-rose-500 text-center w-32 focus:outline-none bg-transparent placeholder:text-stone-300 px-1 mx-1"
+                              autoFocus
+                            />
+                          )}
+
+                          {templateParts[1]}
+                        </p>
+
+                        {hasOptions && !isManualMode && (
+                          <div className="mt-6 grid grid-cols-2 gap-3 max-w-[280px] mx-auto">
+                            {selectedPhrase.options.map((opt, idx) => (
+                              <button
+                                key={idx}
+                                onClick={() => handleOptionClick(opt)}
+                                className={`
+                                  py-3 px-4 rounded-xl text-sm font-bold transition-all shadow-sm
+                                  ${selectedOption?.jp === opt.jp
+                                    ? 'bg-rose-500 text-white shadow-rose-200 transform scale-[1.02]'
+                                    : 'bg-white border border-stone-200 text-stone-600 hover:bg-stone-50 hover:border-stone-300'}
+                                `}
+                              >
+                                <span className="block text-xs font-normal opacity-80 mb-0.5">{opt.zh}</span>
+                                <span className="block text-lg">{opt.jp}</span>
+                              </button>
+                            ))}
+                          </div>
+                        )}
+
+                        {hasOptions ? (
+                          <div className="mt-6 flex justify-center">
+                            <button
+                              onClick={() => setIsManualMode(!isManualMode)}
+                              className="flex items-center gap-1.5 text-xs text-stone-400 hover:text-stone-600 transition-colors py-2 px-3 rounded-lg hover:bg-stone-50"
+                            >
+                              {isManualMode ? <LucideIcon name="layout-grid" size={14} /> : <LucideIcon name="keyboard" size={14} />}
+                              {isManualMode ? '切換回選項模式' : '切換手動輸入'}
+                            </button>
+                          </div>
+                        ) : (
+                          <p className="text-xs text-stone-400 mt-2 font-medium">💡 可直接輸入中文或英文，系統會照唸</p>
+                        )}
+                      </div>
+                    ) : (
+                      <p className="text-4xl sm:text-5xl font-bold text-stone-800 leading-snug break-words select-all">
+                        {selectedPhrase.jp}
+                      </p>
+                    )}
+
+                    <p className="text-lg text-stone-400 font-light italic font-mono">
+                      {(selectedPhrase.romaji || '').replace('___', '...')}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="p-6 bg-stone-50/50 border-t border-stone-100">
+                  <button
+                    onClick={() => {
+                      const text = (hasOptions && !isManualMode && selectedOption)
+                        ? selectedPhrase.jp.replace('___', selectedOption.jp)
+                        : (inputText ? selectedPhrase.jp.replace('___', inputText) : selectedPhrase.jp);
+                      speak(text);
+                    }}
+                    className={`
+                      w-full py-4 rounded-2xl flex items-center justify-center gap-3 text-lg font-bold transition-all shadow-lg active:scale-[0.98]
+                      ${isSpeaking
+                        ? 'bg-stone-100 text-stone-500'
+                        : 'bg-rose-300 text-white hover:bg-rose-400 shadow-md shadow-rose-100/40'}
+                    `}
+                  >
+                    {isSpeaking ? (
+                      <><LucideIcon name="square" size={20} className="fill-current" /> 點擊停止</>
+                    ) : (
+                      <><LucideIcon name="volume-2" size={22} /> 播放發音</>
+                    )}
+                  </button>
+
+                  {isTemplate && (
+                    <p className="mt-3 text-center text-xs text-stone-400 font-medium">
+                      {hasOptions && !isManualMode ? '* 點擊上方選項即可直接發音' : '* 語音會自動讀出您填寫的內容喔！'}
+                    </p>
                   )}
                 </div>
               </div>
-              <div>
-                <label className="block text-xs font-medium text-stone-500 mb-1.5">日文 (必填)</label>
-                <div className="space-y-1">
-                  <input 
-                    type="text" 
-                    value={newPhrase.jp} 
-                    onChange={(e) => handleNewPhraseChange('jp', e.target.value)}
-                    placeholder="例如：これはいくらですか？"
-                    className="w-full p-3 bg-stone-50 border border-stone-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-rose-100 focus:border-rose-300 transition-all font-medium text-stone-700"
-                    required
-                  />
-                  <p className="text-[10px] text-stone-400 pl-1">
-                    * 填空請輸入三個底線 "___"
-                  </p>
-                </div>
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-stone-500 mb-1.5">羅馬拼音 (選填)</label>
-                <input 
-                  type="text" 
-                  value={newPhrase.romaji} 
-                  onChange={(e) => handleNewPhraseChange('romaji', e.target.value)}
-                  placeholder="例如：Kore wa ikura desu ka?"
-                  className="w-full p-3 bg-stone-50 border border-stone-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-rose-100 focus:border-rose-300 transition-all text-stone-700"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-stone-500 mb-1.5">分類</label>
-                <div className="relative">
-                  <select 
-                    value={newPhrase.category} 
-                    onChange={(e) => handleNewPhraseChange('category', e.target.value)}
-                    className="w-full p-3 bg-stone-50 border border-stone-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-rose-100 focus:border-rose-300 appearance-none text-stone-700"
-                  >
-                    {CATEGORIES.map(cat => (
-                      <option key={cat.id} value={cat.id}>{cat.name}</option>
-                    ))}
-                  </select>
-                  <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-stone-400">
-                    <ChevronRight size={16} className="rotate-90" />
-                  </div>
-                </div>
-              </div>
-              <button 
-                type="submit" 
-                className="w-full py-3.5 bg-rose-400 text-white rounded-xl font-bold hover:bg-rose-500 shadow-sm hover:shadow-md active:scale-[0.98] transition-all mt-2"
-              >
-                加入列表
-              </button>
-            </form>
-          </div>
+            </div>
+          )}
         </div>
-      )}
+      );
+    }
 
-      {/* 刪除確認 Modal */}
-      {phraseToDelete && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-stone-900/40 backdrop-blur-sm" onClick={cancelDelete}></div>
-          <div className="relative z-10 bg-white w-full max-w-xs rounded-2xl shadow-xl overflow-hidden p-6 animate-in zoom-in-95 duration-200 text-center">
-            <div className="mx-auto w-12 h-12 bg-stone-100 rounded-full flex items-center justify-center mb-4">
-              <Trash2 className="text-stone-400" size={24} />
-            </div>
-            <h3 className="text-lg font-bold text-stone-800 mb-2">確定要刪除嗎？</h3>
-            <p className="text-sm text-stone-500 mb-6">刪除後無法復原。</p>
-            <div className="flex gap-3">
-              <button 
-                onClick={cancelDelete}
-                className="flex-1 py-3 bg-stone-50 text-stone-600 rounded-xl font-medium hover:bg-stone-100 transition-colors"
-              >
-                取消
-              </button>
-              <button 
-                onClick={confirmDelete}
-                className="flex-1 py-3 bg-rose-400 text-white rounded-xl font-medium hover:bg-rose-500 shadow-sm transition-colors"
-              >
-                刪除
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* 全螢幕詳細卡片 (Modal) */}
-      {selectedPhrase && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          {/* 背景層：點擊關閉 (並停止語音) */}
-          <div 
-            className="absolute inset-0 bg-stone-900/40 backdrop-blur-sm animate-in fade-in duration-200 cursor-pointer"
-            onClick={closeModal}
-          ></div>
-          
-          {/* 卡片本體 */}
-          <div 
-            className="relative z-10 bg-white w-full max-w-sm rounded-3xl shadow-2xl overflow-hidden flex flex-col animate-in zoom-in-95 duration-200"
-            style={{ minHeight: '60vh', maxHeight: '90vh' }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <button 
-              onClick={closeModal}
-              className="absolute top-4 right-4 p-2 bg-stone-50 rounded-full text-stone-400 hover:bg-stone-100 transition-colors z-10"
-            >
-              <X size={24} />
-            </button>
-
-            <div className="flex-1 flex flex-col items-center justify-center p-8 text-center space-y-6 overflow-y-auto">
-              <div className="space-y-2">
-                <span className="px-3 py-1 bg-stone-100 text-stone-500 text-xs rounded-full">
-                  中文意思
-                </span>
-                <h2 className="text-2xl font-bold text-stone-700 leading-tight">
-                  {selectedPhrase.zh}
-                </h2>
-              </div>
-
-              <div className="w-12 h-1 bg-stone-100 rounded-full"></div>
-
-              <div className="space-y-4 w-full">
-                <span className="px-3 py-1 bg-stone-50 text-stone-400 text-xs rounded-full border border-stone-100">
-                  請指給對方看
-                </span>
-                
-                {/* 智慧填空顯示邏輯 (包含選項模式) */}
-                {isTemplate ? (
-                  <div className="mb-4">
-                    {/* 顯示大字報部分 */}
-                    <p className="text-4xl sm:text-5xl font-bold text-stone-800 leading-snug break-words">
-                      {templateParts[0]}
-                      
-                      {/* 依據模式決定顯示 Input 還是 選項文字 */}
-                      {(hasOptions && !isManualMode) ? (
-                        <span className="text-rose-500 border-b-2 border-rose-500 px-2 mx-1">
-                          {selectedOption ? selectedOption.jp : '___'}
-                        </span>
-                      ) : (
-                        <input 
-                          type="text" 
-                          value={inputText}
-                          onChange={(e) => setInputText(e.target.value)}
-                          placeholder="輸入..."
-                          className="inline-block border-b-2 border-rose-300 text-rose-500 text-center w-32 focus:outline-none bg-transparent placeholder:text-stone-300 px-1 mx-1"
-                          autoFocus
-                        />
-                      )}
-                      
-                      {templateParts[1]}
-                    </p>
-
-                    {/* 選項按鈕區 */}
-                    {hasOptions && !isManualMode && (
-                      <div className="mt-6 grid grid-cols-2 gap-3 max-w-[280px] mx-auto">
-                        {selectedPhrase.options.map((opt, idx) => (
-                          <button
-                            key={idx}
-                            onClick={() => handleOptionClick(opt)}
-                            className={`
-                              py-3 px-4 rounded-xl text-sm font-bold transition-all shadow-sm
-                              ${selectedOption?.jp === opt.jp 
-                                ? 'bg-rose-500 text-white shadow-rose-200 transform scale-[1.02]' 
-                                : 'bg-white border border-stone-200 text-stone-600 hover:bg-stone-50 hover:border-stone-300'}
-                            `}
-                          >
-                            <span className="block text-xs font-normal opacity-80 mb-0.5">{opt.zh}</span>
-                            <span className="block text-lg">{opt.jp}</span>
-                          </button>
-                        ))}
-                      </div>
-                    )}
-
-                    {/* 模式切換提示 */}
-                    {hasOptions ? (
-                      <div className="mt-6 flex justify-center">
-                        <button 
-                          onClick={() => setIsManualMode(!isManualMode)}
-                          className="flex items-center gap-1.5 text-xs text-stone-400 hover:text-stone-600 transition-colors py-2 px-3 rounded-lg hover:bg-stone-50"
-                        >
-                          {isManualMode ? <LayoutGrid size={14} /> : <Keyboard size={14} />}
-                          {isManualMode ? '切換回選項模式' : '切換手動輸入'}
-                        </button>
-                      </div>
-                    ) : (
-                      <p className="text-xs text-stone-400 mt-2 font-medium">
-                        💡 可直接輸入中文或英文，系統會照唸
-                      </p>
-                    )}
-                  </div>
-                ) : (
-                  <p className="text-4xl sm:text-5xl font-bold text-stone-800 leading-snug break-words select-all">
-                    {selectedPhrase.jp}
-                  </p>
-                )}
-                
-                <p className="text-lg text-stone-400 font-light italic font-mono">
-                  {selectedPhrase.romaji.replace('___', '...')}
-                </p>
-              </div>
-            </div>
-
-            <div className="p-6 bg-stone-50/50 border-t border-stone-100">
-              {/* Primary Action Button: 淡櫻花粉方案 */}
-              <button 
-                onClick={() => {
-                  const text = (hasOptions && !isManualMode && selectedOption) 
-                    ? selectedPhrase.jp.replace('___', selectedOption.jp)
-                    : (inputText ? selectedPhrase.jp.replace('___', inputText) : selectedPhrase.jp);
-                  speak(text);
-                }}
-                className={`
-                  w-full py-4 rounded-2xl flex items-center justify-center gap-3 text-lg font-bold transition-all shadow-lg active:scale-[0.98]
-                  ${isSpeaking 
-                    ? 'bg-stone-100 text-stone-500' 
-                    : 'bg-rose-300 text-white hover:bg-rose-400 shadow-md shadow-rose-100/40'}
-                `}
-              >
-                {isSpeaking ? (
-                  <><Square size={20} className="fill-current" /> 點擊停止</>
-                ) : (
-                  <><Volume2 size={22} /> 播放發音</>
-                )}
-              </button>
-              {isTemplate && (
-                <p className="mt-3 text-center text-xs text-stone-400 font-medium">
-                  {hasOptions && !isManualMode 
-                    ? '* 點擊上方選項即可直接發音' 
-                    : '* 語音會自動讀出您填寫的內容喔！'}
-                </p>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-      
-      {/* 注入全域 CSS */}
-      <style>{`
-        .no-scrollbar::-webkit-scrollbar {
-          width: 0;
-          height: 0;
-          display: none;
-        }
-        .no-scrollbar {
-          -ms-overflow-style: none;  /* IE/Edge legacy */
-          scrollbar-width: none;     /* Firefox */
-        }
-      `}</style>
-    </div>
-  );
-}
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
+</body>
+</html>
