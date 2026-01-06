@@ -2,20 +2,21 @@
 <html lang="zh-Hant">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>旅日一句通｜點了就會說</title>
 
-  <!-- Tailwind CDN（不需 build） -->
+  <!-- Tailwind (CDN) -->
   <script src="https://cdn.tailwindcss.com"></script>
 
-  <!-- React 18 UMD（不需 build） -->
-  <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
-  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  <!-- React 18 UMD -->
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
 
-  <!-- Babel：讓瀏覽器直接吃 JSX（不需 build） -->
+  <!-- Babel：讓你可以在單檔 HTML 直接寫 JSX -->
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 
-  <!-- Lucide（不是 lucide-react；用 CDN 直接產生 SVG） -->
+  <!-- Lucide (UMD) -->
+  <!-- 依官方文件：UMD 可直接用 script 載入，然後 lucide.createIcons() 會把 data-lucide 轉成 svg -->
   <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
 </head>
 
@@ -23,34 +24,32 @@
   <div id="root"></div>
 
   <script type="text/babel">
-    const { useState, useEffect, useRef, useMemo } = React;
+    const { useState, useEffect, useRef } = React;
 
-    // --- Icon helper（用 lucide CDN 產 SVG） ---
-    function Icon({ name, size = 18, className = "" }) {
-      const svg = (window.lucide && window.lucide.icons && window.lucide.icons[name] && window.lucide.icons[name].toSvg)
-        ? window.lucide.icons[name].toSvg({ width: size, height: size })
-        : "";
+    // ---- Lucide helper (vanilla) ----
+    function LucideIcon({ name, size = 18, className = "" }) {
+      // size 會轉為 width/height（lucide 會吃到 svg attrs）
       return (
-        <span
+        <i
+          data-lucide={name}
+          style={{ width: size + "px", height: size + "px" }}
           className={className}
-          style={{ display: "inline-flex", lineHeight: 0 }}
-          dangerouslySetInnerHTML={{ __html: svg }}
-        />
+        ></i>
       );
     }
 
     // --- 1. 常數與設定 ---
     const STORAGE_KEY = 'tabi_talk_phrases_v15';
 
-    // 分類定義：改為 iconName（lucide 的 kebab-case）
+    // 分類定義（icon 改為 lucide 名稱字串）
     const CATEGORIES = [
-      { id: 'survival', name: '萬用', iconName: 'message-circle', activeClass: 'bg-rose-50 text-rose-600 border-rose-200' },
-      { id: 'consumption', name: '消費', iconName: 'shopping-bag', activeClass: 'bg-orange-50 text-orange-700 border-orange-200' },
-      { id: 'transport', name: '交通', iconName: 'train', activeClass: 'bg-sky-50 text-sky-700 border-sky-200' },
-      { id: 'accommodation', name: '住宿', iconName: 'home', activeClass: 'bg-violet-50 text-violet-700 border-violet-200' },
-      { id: 'interaction', name: '社交', iconName: 'camera', activeClass: 'bg-teal-50 text-teal-700 border-teal-200' },
-      { id: 'food', name: '食材', iconName: 'utensils', activeClass: 'bg-amber-50 text-amber-700 border-amber-200' },
-      { id: 'emergency', name: '救援', iconName: 'alert-circle', activeClass: 'bg-stone-100 text-stone-600 border-stone-300' },
+      { id: 'survival',       name: '萬用', icon: 'message-circle', activeClass: 'bg-rose-50 text-rose-600 border-rose-200' },
+      { id: 'consumption',    name: '消費', icon: 'shopping-bag',   activeClass: 'bg-orange-50 text-orange-700 border-orange-200' },
+      { id: 'transport',      name: '交通', icon: 'train',          activeClass: 'bg-sky-50 text-sky-700 border-sky-200' },
+      { id: 'accommodation',  name: '住宿', icon: 'home',           activeClass: 'bg-violet-50 text-violet-700 border-violet-200' },
+      { id: 'interaction',    name: '社交', icon: 'camera',         activeClass: 'bg-teal-50 text-teal-700 border-teal-200' },
+      { id: 'food',           name: '食材', icon: 'utensils',       activeClass: 'bg-amber-50 text-amber-700 border-amber-200' },
+      { id: 'emergency',      name: '救援', icon: 'alert-circle',   activeClass: 'bg-stone-100 text-stone-600 border-stone-300' },
     ];
 
     const CATEGORY_IDS = new Set(CATEGORIES.map(c => c.id));
@@ -65,8 +64,8 @@
       interaction: ['拍照', '相片', '打擾', '中文', '台灣']
     };
 
-    // 你原本的 INITIAL_PHRASES 很長；這裡保留你貼出的完整段
     const INITIAL_PHRASES = [
+      // --- 萬用 (Survival) ---
       { id: 's15', category: 'survival', zh: '謝謝／打招呼 (萬用)', jp: 'どうも', romaji: 'Dōmo' },
       { id: 's40_copy', category: 'survival', zh: '麻煩你了／拜託你了', jp: 'お願いします', romaji: 'Onegaishimasu' },
       { id: 's1', category: 'survival', zh: '不好意思／請問一下', jp: 'すみません', romaji: 'Sumimasen' },
@@ -100,6 +99,7 @@
       { id: 'e16', category: 'survival', zh: '可以帶我過去嗎？(指引)', jp: '案内してもらえますか？', romaji: 'Annai shite moraemasu ka?' },
       { id: 's5', category: 'survival', zh: '沒關係 (婉拒或沒事)', jp: '大丈夫です', romaji: 'Daijōbu desu' },
 
+      // --- 消費 (Consumption) ---
       { id: 'c1', category: 'consumption', zh: '請給我這個', jp: 'これをください', romaji: 'Kore o kudasai' },
       { id: 'c40', category: 'consumption', zh: '麻煩你了／拜託你了', jp: 'お願いします', romaji: 'Onegaishimasu' },
       { id: 'c41', category: 'consumption', zh: '我要開動了', jp: 'いただきます', romaji: 'Itadakimasu' },
@@ -161,6 +161,7 @@
       { id: 'c34', category: 'consumption', zh: '不要塑膠袋', jp: '袋はいりません', romaji: 'Fukuro wa irimasen' },
       { id: 'c9', category: 'consumption', zh: '麻煩幫我裝袋', jp: '袋をお願いします', romaji: 'Fukuro o onegaishimasu' },
 
+      // --- 交通 (Transport) ---
       { id: 't18', category: 'transport', zh: '我想儲值(加值)', jp: 'チャージしたいです', romaji: 'Chāji shitai desu' },
       { id: 't19', category: 'transport', zh: '餘額不足', jp: '残高不足です', romaji: 'Zandaka busoku desu' },
       {
@@ -179,7 +180,7 @@
       { id: 't10', category: 'transport', zh: '我應該搭哪一條線？', jp: 'どの線に乗ればいいですか？', romaji: 'Dono sen ni noreba ii desu ka?' },
       { id: 't20', category: 'transport', zh: '我坐錯車了', jp: '電車を間違えました', romaji: 'Densha o machigaemashita' },
       { id: 't2', category: 'transport', zh: '請問車站在哪？', jp: '駅はどちらですか？', romaji: 'Eki wa dochira desu ka?' },
-      { id: 't11', category: 'transport', zh: '月台在哪裡？', jp: 'ホームはどこですか？', romaji: 'Hōmu wai wa doko desu ka?' },
+      { id: 't11', category: 'transport', zh: '月台在哪裡？', jp: 'ホームはどこですか？', romaji: 'Hōmu wa doko desu ka?' },
       { id: 't21', category: 'transport', zh: '這個月台對嗎？', jp: 'このホームで合っていますか？', romaji: 'Kono hōmu de atte imasu ka?' },
       { id: 't12', category: 'transport', zh: '這是特急／快速嗎？', jp: 'これは特急（快速）ですか？', romaji: 'Kore wa tokkyū (kaisoku) desu ka?' },
       { id: 't13', category: 'transport', zh: '我想去___', jp: '___に行きたいです', romaji: '___ ni ikitai desu' },
@@ -194,6 +195,7 @@
       { id: 't16', category: 'transport', zh: '請到這個地址(計程車)', jp: 'この住所までお願いします', romaji: 'Kono jūsho made onegaishimasu' },
       { id: 't17', category: 'transport', zh: '麻煩走高速公路', jp: '高速でお願いします', romaji: 'Kōsoku de onegaishimasu' },
 
+      // --- 住宿 (Accommodation) ---
       { id: 'a5', category: 'accommodation', zh: '麻煩辦理入住', jp: 'チェックインをお願いします', romaji: 'Chekkuin o onegaishimasu' },
       { id: 'a10', category: 'accommodation', zh: '我有訂房，這是訂單', jp: '予約しています。こちらです', romaji: 'Yoyaku shiteimasu. Kochira desu' },
       { id: 'a11', category: 'accommodation', zh: '可以提早入住／延後退房嗎？', jp: 'アーリーチェックイン（レイトチェックアウト）はできますか？', romaji: 'Ārī chekkuin (Reito chekkuauto) wa dekimasu ka?' },
@@ -211,6 +213,7 @@
       { id: 'a20', category: 'accommodation', zh: '不用打掃', jp: '掃除いりません', romaji: 'Sōji irimasen' },
       { id: 'a8', category: 'accommodation', zh: '是否有我的包裹？', jp: '私宛の荷物は届いていますか？', romaji: 'Watashi-ate no nimotsu wa todoite imasu ka?' },
 
+      // --- 社交 (Interaction) ---
       { id: 'i4', category: 'interaction', zh: '你好', jp: 'こんにちは', romaji: 'Konnichiwa' },
       { id: 'i5', category: 'interaction', zh: '晚安', jp: 'こんばんは', romaji: 'Konbanwa' },
       { id: 'i6', category: 'interaction', zh: '我從台灣來', jp: '台湾から来ました', romaji: 'Taiwan kara kimashita' },
@@ -222,6 +225,7 @@
       { id: 'i9', category: 'interaction', zh: '我可以跟你合照嗎？', jp: '一緒に写真を撮ってもいいですか？', romaji: 'Issho ni shashin o totte mo ii desu ka?' },
       { id: 'i2', category: 'interaction', zh: '可以幫我拍照嗎？', jp: '写真撮ってもらえますか？', romaji: 'Shashin totte moraemasu ka?' },
 
+      // --- 食材 (Food) ---
       { id: 'f1', category: 'food', zh: '牛五花', jp: 'カルビ', romaji: 'Karubi · Short Rib' },
       { id: 'f2', category: 'food', zh: '牛里肌', jp: 'ロース', romaji: 'Rōsu · Loin' },
       { id: 'f3', category: 'food', zh: '橫膈膜', jp: 'ハラミ', romaji: 'Harami · Skirt Steak' },
@@ -251,6 +255,7 @@
       { id: 'f27', category: 'food', zh: '午餐肉', jp: 'スパム', romaji: 'Supamu · Spam' },
       { id: 'f28', category: 'food', zh: '蛋', jp: '卵', romaji: 'Tamago · Egg' },
 
+      // --- 救援 (Emergency) ---
       { id: 'e9', category: 'emergency', zh: '我需要幫忙', jp: '助けてください', romaji: 'Tasukete kudasai' },
       { id: 'e6', category: 'emergency', zh: '不好意思，我迷路了', jp: '道に迷ってしまいました', romaji: 'Michi ni mayotte shimaimashita' },
       { id: 'e10', category: 'emergency', zh: '這裡是哪裡？', jp: 'ここはどこですか？', romaji: 'Koko wa doko desu ka?' },
@@ -300,17 +305,12 @@
         .filter(x => x.zh.trim() || x.jp.trim());
     }
 
-    // 分類排序（穩定：同分類保留原順序）
     const normalizeOrder = (list) => {
-      return [...list]
-        .map((x, idx) => ({ ...x, __idx: idx }))
-        .sort((a, b) => {
-          const ia = CATEGORY_ORDER.indexOf(a.category);
-          const ib = CATEGORY_ORDER.indexOf(b.category);
-          if (ia !== ib) return ia - ib;
-          return a.__idx - b.__idx;
-        })
-        .map(({ __idx, ...rest }) => rest);
+      return [...list].sort((a, b) => {
+        const ia = CATEGORY_ORDER.indexOf(a.category);
+        const ib = CATEGORY_ORDER.indexOf(b.category);
+        return ia - ib;
+      });
     };
 
     function loadPhrasesSafe() {
@@ -326,18 +326,15 @@
     }
 
     function App() {
-      // --- State ---
       const [phrases, setPhrases] = useState(loadPhrasesSafe);
       const [activeCategory, setActiveCategory] = useState('survival');
       const [selectedPhraseId, setSelectedPhraseId] = useState(null);
-
       const [isSpeaking, setIsSpeaking] = useState(false);
       const [isEditMode, setIsEditMode] = useState(false);
       const [isAdding, setIsAdding] = useState(false);
       const [newPhrase, setNewPhrase] = useState({ zh: '', jp: '', romaji: '', category: 'survival' });
       const [voices, setVoices] = useState([]);
       const [phraseToDelete, setPhraseToDelete] = useState(null);
-
       const [inputText, setInputText] = useState('');
       const [selectedOption, setSelectedOption] = useState(null);
       const [isManualMode, setIsManualMode] = useState(false);
@@ -346,15 +343,17 @@
       const playDelayRef = useRef(null);
       const utteranceRef = useRef(null);
 
-      const selectedPhrase = useMemo(
-        () => phrases.find(p => p.id === selectedPhraseId) || null,
-        [phrases, selectedPhraseId]
-      );
+      const selectedPhrase = phrases.find(p => p.id === selectedPhraseId) || null;
 
-      // --- Effects ---
+      // Lucide icons：每次畫面更新後，把 data-lucide 轉成 svg
       useEffect(() => {
-        return () => stopSpeaking();
-      }, []);
+        if (window.lucide && typeof window.lucide.createIcons === 'function') {
+          window.lucide.createIcons();
+        }
+      });
+
+      // Cleanup
+      useEffect(() => () => stopSpeaking(), []);
 
       useEffect(() => {
         try { localStorage.setItem(STORAGE_KEY, JSON.stringify(phrases)); }
@@ -383,7 +382,6 @@
         }
       }, [selectedPhraseId]);
 
-      // --- Functions ---
       const stopSpeaking = () => {
         try { window.speechSynthesis?.cancel?.(); } catch (e) {}
         if (speechTimeoutRef.current) clearTimeout(speechTimeoutRef.current);
@@ -402,9 +400,10 @@
       const handleDeleteClick = (id) => setPhraseToDelete(id);
 
       const confirmDelete = () => {
-        if (!phraseToDelete) return;
-        setPhrases(prev => prev.filter(p => p.id !== phraseToDelete));
-        setPhraseToDelete(null);
+        if (phraseToDelete) {
+          setPhrases(prev => prev.filter(p => p.id !== phraseToDelete));
+          setPhraseToDelete(null);
+        }
       };
 
       const cancelDelete = () => setPhraseToDelete(null);
@@ -439,10 +438,10 @@
         const pickVoice = () => {
           let available = voices;
           if (!available || available.length === 0) available = synth.getVoices();
-          return available.find(v => v.name.includes('Google') && v.lang === 'ja-JP')
-              || available.find(v => v.lang === 'ja-JP')
-              || available.find(v => v.lang.startsWith('ja'))
-              || null;
+          return available.find(v => v.name.includes('Google') && v.lang === 'ja-JP') ||
+                 available.find(v => v.lang === 'ja-JP') ||
+                 available.find(v => v.lang && v.lang.startsWith('ja')) ||
+                 null;
         };
 
         const attemptSpeak = (retryWithDefault = false) => {
@@ -473,7 +472,7 @@
               return;
             }
             if (!retryWithDefault) {
-              console.warn(`Speech synthesis error (${e.error}). Retrying with system default...`);
+              console.warn(\`Speech synthesis error (\${e.error}). Retrying with system default...\`);
               window.speechSynthesis.cancel();
               setTimeout(() => attemptSpeak(true), 100);
             } else {
@@ -556,15 +555,11 @@
       const openGoogleTranslate = () => {
         const text = newPhrase.zh;
         if (!text) return;
-        const url = `https://translate.google.com/?sl=zh-TW&tl=ja&text=${encodeURIComponent(text)}&op=translate`;
+        const url = \`https://translate.google.com/?sl=zh-TW&tl=ja&text=\${encodeURIComponent(text)}&op=translate\`;
         window.open(url, '_blank');
       };
 
-      const filteredPhrases = useMemo(
-        () => phrases.filter(p => p.category === activeCategory),
-        [phrases, activeCategory]
-      );
-
+      const filteredPhrases = phrases.filter(p => p.category === activeCategory);
       const currentCategoryInfo = CATEGORIES.find(c => c.id === activeCategory);
 
       const templateParts = selectedPhrase?.jp?.split('___');
@@ -579,10 +574,10 @@
 
       return (
         <div className="min-h-screen bg-[#fdfbf7] text-stone-700 font-sans selection:bg-rose-100 pb-20 overflow-x-hidden">
-          <style>{`
-            .no-scrollbar::-webkit-scrollbar { width:0; height:0; display:none; }
-            .no-scrollbar { -ms-overflow-style:none; scrollbar-width:none; }
-          `}</style>
+          <style>{\`
+            .no-scrollbar::-webkit-scrollbar { width: 0; height: 0; display: none; }
+            .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+          \`}</style>
 
           <header className="sticky top-0 z-10 bg-[#fdfbf7]/95 backdrop-blur-sm border-b border-stone-200 shadow-sm transition-all w-full overflow-x-hidden">
             <div className="max-w-md mx-auto px-4 py-3 flex items-center justify-between gap-4">
@@ -595,17 +590,17 @@
               <div className="flex gap-2 flex-shrink-0">
                 <button
                   onClick={() => setIsEditMode(!isEditMode)}
-                  className={`p-2 rounded-full transition-colors flex items-center gap-1 ${isEditMode ? 'bg-rose-50 text-rose-500' : 'text-stone-400 hover:bg-stone-100'}`}
+                  className={\`p-2 rounded-full transition-colors flex items-center gap-1 \${isEditMode ? 'bg-rose-50 text-rose-500' : 'text-stone-400 hover:bg-stone-100'}\`}
                   title={isEditMode ? "完成編輯" : "編輯順序"}
                 >
-                  <Icon name={isEditMode ? 'check' : 'edit-3'} size={20} />
+                  {isEditMode ? <LucideIcon name="check" size={20} /> : <LucideIcon name="edit-3" size={20} />}
                 </button>
                 <button
                   onClick={() => setIsAdding(true)}
                   className="p-2 rounded-full bg-white border border-stone-200 text-stone-500 shadow-sm hover:bg-stone-50 transition-colors"
                   title="新增語句"
                 >
-                  <Icon name="plus" size={20} />
+                  <LucideIcon name="plus" size={20} />
                 </button>
               </div>
             </div>
@@ -619,14 +614,14 @@
                   <button
                     key={cat.id}
                     onClick={() => setActiveCategory(cat.id)}
-                    className={`
+                    className={\`
                       flex items-center gap-1.5 px-4 py-2 rounded-full whitespace-nowrap text-sm font-medium transition-all duration-200 flex-shrink-0
-                      ${activeCategory === cat.id
-                        ? `${cat.activeClass} border shadow-sm`
+                      \${activeCategory === cat.id
+                        ? \`\${cat.activeClass} border shadow-sm\`
                         : 'bg-white text-stone-500 border border-stone-200 hover:bg-stone-50'}
-                    `}
+                    \`}
                   >
-                    <Icon name={cat.iconName} size={18} />
+                    <LucideIcon name={cat.icon} size={18} />
                     {cat.name}
                   </button>
                 ))}
@@ -649,22 +644,23 @@
                 <div key={phrase.id} className="relative group">
                   <button
                     onClick={() => !isEditMode && setSelectedPhraseId(phrase.id)}
-                    className={`
+                    className={\`
                       w-full bg-white p-4 rounded-2xl border shadow-sm transition-all text-left flex justify-between items-start
-                      ${isEditMode ? 'border-stone-200 pl-12' : 'border-stone-100 hover:shadow-md hover:border-rose-100 active:scale-[0.99]'}
-                    `}
+                      \${isEditMode ? 'border-stone-200 pl-12' : 'border-stone-100 hover:shadow-md hover:border-rose-100 active:scale-[0.99]'}
+                    \`}
                   >
                     <div className="flex-1 min-w-0">
                       <h3 className="text-stone-800 font-bold text-xl mb-1 truncate flex items-center gap-2">
                         {phrase.zh}
-                        {phrase.jp.includes('___') && <Icon name="pen-line" size={14} className="text-rose-300" />}
+                        {phrase.jp.includes('___') && <LucideIcon name="pen-line" size={14} className="text-rose-300" />}
                       </h3>
                       <p className="text-rose-500/80 text-sm font-medium mb-0.5 truncate">{phrase.jp}</p>
                       <p className="text-stone-400 text-sm font-light truncate font-mono">{phrase.romaji}</p>
                     </div>
+
                     {!isEditMode && (
                       <div className="mt-2 text-stone-200 group-hover:text-rose-300 transition-colors">
-                        <Icon name="chevron-right" size={20} />
+                        <LucideIcon name="chevron-right" size={20} />
                       </div>
                     )}
                   </button>
@@ -677,21 +673,21 @@
                           disabled={index === 0}
                           className="p-3 text-stone-400 hover:text-rose-400 disabled:opacity-20 z-10 cursor-pointer"
                         >
-                          <Icon name="arrow-up" size={18} />
+                          <LucideIcon name="arrow-up" size={18} />
                         </button>
                         <button
                           onClick={(e) => { e.stopPropagation(); movePhrase(index, 'down'); }}
                           disabled={index === filteredPhrases.length - 1}
                           className="p-3 text-stone-400 hover:text-rose-400 disabled:opacity-20 z-10 cursor-pointer"
                         >
-                          <Icon name="arrow-down" size={18} />
+                          <LucideIcon name="arrow-down" size={18} />
                         </button>
                       </div>
                       <button
                         onClick={(e) => { e.stopPropagation(); handleDeleteClick(phrase.id); }}
                         className="absolute right-4 top-1/2 -translate-y-1/2 p-2 bg-stone-50 text-stone-400 rounded-full hover:bg-rose-50 hover:text-rose-500 transition-colors z-10 cursor-pointer"
                       >
-                        <Icon name="trash-2" size={18} />
+                        <LucideIcon name="trash-2" size={18} />
                       </button>
                     </>
                   )}
@@ -700,7 +696,7 @@
 
               {filteredPhrases.length === 0 && (
                 <div className="text-center py-10 text-stone-400">
-                  <Icon name="book-open" size={48} className="mx-auto text-stone-200 mb-4" />
+                  <LucideIcon name="book-open" size={48} className="mx-auto text-stone-200 mb-4" />
                   <p>這個分類還沒有語句哦</p>
                   <button onClick={() => setIsAdding(true)} className="mt-2 text-rose-400 underline hover:text-rose-500">
                     新增一句
@@ -714,14 +710,13 @@
           {isAdding && (
             <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
               <div className="absolute inset-0 bg-stone-900/40 backdrop-blur-sm" onClick={() => setIsAdding(false)}></div>
-              <div className="relative z-10 bg-white w-full max-w-sm rounded-2xl shadow-xl overflow-hidden">
+              <div className="relative z-10 bg-white w-full max-w-sm rounded-2xl shadow-xl overflow-hidden animate-in zoom-in-95 duration-200">
                 <div className="p-4 border-b border-stone-100 flex justify-between items-center bg-stone-50/50">
                   <h2 className="font-bold text-stone-700 flex items-center gap-2">新增語句</h2>
                   <button onClick={() => setIsAdding(false)} className="text-stone-400 hover:text-stone-600">
-                    <Icon name="x" size={20} />
+                    <LucideIcon name="x" size={20} />
                   </button>
                 </div>
-
                 <form onSubmit={handleAddSubmit} className="p-6 space-y-5">
                   <div>
                     <label className="block text-xs font-medium text-stone-500 mb-1.5">中文 (必填)</label>
@@ -740,7 +735,7 @@
                           onClick={openGoogleTranslate}
                           className="p-3 bg-white border border-stone-200 text-stone-500 rounded-xl hover:bg-stone-50 transition-colors"
                         >
-                          <Icon name="languages" size={20} />
+                          <LucideIcon name="languages" size={20} />
                         </button>
                       )}
                     </div>
@@ -785,7 +780,7 @@
                         ))}
                       </select>
                       <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-stone-400">
-                        <Icon name="chevron-right" size={16} className="rotate-90" />
+                        <LucideIcon name="chevron-right" size={16} className="rotate-90" />
                       </div>
                     </div>
                   </div>
@@ -805,9 +800,9 @@
           {phraseToDelete && (
             <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
               <div className="absolute inset-0 bg-stone-900/40 backdrop-blur-sm" onClick={cancelDelete}></div>
-              <div className="relative z-10 bg-white w-full max-w-xs rounded-2xl shadow-xl overflow-hidden p-6 text-center">
+              <div className="relative z-10 bg-white w-full max-w-xs rounded-2xl shadow-xl overflow-hidden p-6 animate-in zoom-in-95 duration-200 text-center">
                 <div className="mx-auto w-12 h-12 bg-stone-100 rounded-full flex items-center justify-center mb-4">
-                  <Icon name="trash-2" size={24} className="text-stone-400" />
+                  <LucideIcon name="trash-2" size={24} className="text-stone-400" />
                 </div>
                 <h3 className="text-lg font-bold text-stone-800 mb-2">確定要刪除嗎？</h3>
                 <p className="text-sm text-stone-500 mb-6">刪除後無法復原。</p>
@@ -829,16 +824,16 @@
             </div>
           )}
 
-          {/* 全螢幕詳細卡片 */}
+          {/* 全螢幕詳細卡片 (Modal) */}
           {selectedPhrase && (
             <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
               <div
-                className="absolute inset-0 bg-stone-900/40 backdrop-blur-sm cursor-pointer"
+                className="absolute inset-0 bg-stone-900/40 backdrop-blur-sm animate-in fade-in duration-200 cursor-pointer"
                 onClick={closeModal}
               ></div>
 
               <div
-                className="relative z-10 bg-white w-full max-w-sm rounded-3xl shadow-2xl overflow-hidden flex flex-col"
+                className="relative z-10 bg-white w-full max-w-sm rounded-3xl shadow-2xl overflow-hidden flex flex-col animate-in zoom-in-95 duration-200"
                 style={{ minHeight: '60vh', maxHeight: '90vh' }}
                 onClick={(e) => e.stopPropagation()}
               >
@@ -846,17 +841,13 @@
                   onClick={closeModal}
                   className="absolute top-4 right-4 p-2 bg-stone-50 rounded-full text-stone-400 hover:bg-stone-100 transition-colors z-10"
                 >
-                  <Icon name="x" size={24} />
+                  <LucideIcon name="x" size={24} />
                 </button>
 
                 <div className="flex-1 flex flex-col items-center justify-center p-8 text-center space-y-6 overflow-y-auto">
                   <div className="space-y-2">
-                    <span className="px-3 py-1 bg-stone-100 text-stone-500 text-xs rounded-full">
-                      中文意思
-                    </span>
-                    <h2 className="text-2xl font-bold text-stone-700 leading-tight">
-                      {selectedPhrase.zh}
-                    </h2>
+                    <span className="px-3 py-1 bg-stone-100 text-stone-500 text-xs rounded-full">中文意思</span>
+                    <h2 className="text-2xl font-bold text-stone-700 leading-tight">{selectedPhrase.zh}</h2>
                   </div>
 
                   <div className="w-12 h-1 bg-stone-100 rounded-full"></div>
@@ -866,12 +857,12 @@
                       請指給對方看
                     </span>
 
-                    {isTemplate ? (
+                    {selectedPhrase.jp.includes('___') ? (
                       <div className="mb-4">
                         <p className="text-4xl sm:text-5xl font-bold text-stone-800 leading-snug break-words">
-                          {templateParts[0]}
+                          {selectedPhrase.jp.split('___')[0]}
 
-                          {(hasOptions && !isManualMode) ? (
+                          {(selectedPhrase.options && selectedPhrase.options.length > 0 && !isManualMode) ? (
                             <span className="text-rose-500 border-b-2 border-rose-500 px-2 mx-1">
                               {selectedOption ? selectedOption.jp : '___'}
                             </span>
@@ -886,21 +877,21 @@
                             />
                           )}
 
-                          {templateParts[1]}
+                          {selectedPhrase.jp.split('___')[1]}
                         </p>
 
-                        {hasOptions && !isManualMode && (
+                        {selectedPhrase.options && selectedPhrase.options.length > 0 && !isManualMode && (
                           <div className="mt-6 grid grid-cols-2 gap-3 max-w-[280px] mx-auto">
                             {selectedPhrase.options.map((opt, idx) => (
                               <button
                                 key={idx}
                                 onClick={() => handleOptionClick(opt)}
-                                className={`
+                                className={\`
                                   py-3 px-4 rounded-xl text-sm font-bold transition-all shadow-sm
-                                  ${selectedOption?.jp === opt.jp
+                                  \${selectedOption?.jp === opt.jp
                                     ? 'bg-rose-500 text-white shadow-rose-200 transform scale-[1.02]'
                                     : 'bg-white border border-stone-200 text-stone-600 hover:bg-stone-50 hover:border-stone-300'}
-                                `}
+                                \`}
                               >
                                 <span className="block text-xs font-normal opacity-80 mb-0.5">{opt.zh}</span>
                                 <span className="block text-lg">{opt.jp}</span>
@@ -909,20 +900,19 @@
                           </div>
                         )}
 
-                        {hasOptions ? (
+                        {selectedPhrase.options && selectedPhrase.options.length > 0 ? (
                           <div className="mt-6 flex justify-center">
                             <button
                               onClick={() => setIsManualMode(!isManualMode)}
                               className="flex items-center gap-1.5 text-xs text-stone-400 hover:text-stone-600 transition-colors py-2 px-3 rounded-lg hover:bg-stone-50"
                             >
-                              <Icon name={isManualMode ? 'layout-grid' : 'keyboard'} size={14} />
-                              {isManualMode ? '切換回選項模式' : '切換手動輸入'}
+                              {isManualMode
+                                ? <><LucideIcon name="layout-grid" size={14} /> 切換回選項模式</>
+                                : <><LucideIcon name="keyboard" size={14} /> 切換手動輸入</>}
                             </button>
                           </div>
                         ) : (
-                          <p className="text-xs text-stone-400 mt-2 font-medium">
-                            💡 可直接輸入中文或英文，系統會照唸
-                          </p>
+                          <p className="text-xs text-stone-400 mt-2 font-medium">💡 可直接輸入中文或英文，系統會照唸</p>
                         )}
                       </div>
                     ) : (
@@ -940,32 +930,28 @@
                 <div className="p-6 bg-stone-50/50 border-t border-stone-100">
                   <button
                     onClick={() => {
-                      const text = (hasOptions && !isManualMode && selectedOption)
-                        ? selectedPhrase.jp.replace('___', selectedOption.jp)
-                        : (inputText ? selectedPhrase.jp.replace('___', inputText) : selectedPhrase.jp);
+                      const hasOptions = selectedPhrase.options && selectedPhrase.options.length > 0;
+                      const text =
+                        (hasOptions && !isManualMode && selectedOption)
+                          ? selectedPhrase.jp.replace('___', selectedOption.jp)
+                          : (inputText ? selectedPhrase.jp.replace('___', inputText) : selectedPhrase.jp);
                       speak(text);
                     }}
-                    className={`
+                    className={\`
                       w-full py-4 rounded-2xl flex items-center justify-center gap-3 text-lg font-bold transition-all shadow-lg active:scale-[0.98]
-                      ${isSpeaking ? 'bg-stone-100 text-stone-500' : 'bg-rose-300 text-white hover:bg-rose-400 shadow-md shadow-rose-100/40'}
-                    `}
+                      \${isSpeaking ? 'bg-stone-100 text-stone-500' : 'bg-rose-300 text-white hover:bg-rose-400 shadow-md shadow-rose-100/40'}
+                    \`}
                   >
                     {isSpeaking ? (
-                      <>
-                        <Icon name="square" size={20} className="opacity-90" />
-                        點擊停止
-                      </>
+                      <><LucideIcon name="square" size={20} /> 點擊停止</>
                     ) : (
-                      <>
-                        <Icon name="volume-2" size={22} className="opacity-90" />
-                        播放發音
-                      </>
+                      <><LucideIcon name="volume-2" size={22} /> 播放發音</>
                     )}
                   </button>
 
-                  {isTemplate && (
+                  {selectedPhrase.jp.includes('___') && (
                     <p className="mt-3 text-center text-xs text-stone-400 font-medium">
-                      {hasOptions && !isManualMode
+                      {(selectedPhrase.options && selectedPhrase.options.length > 0 && !isManualMode)
                         ? '* 點擊上方選項即可直接發音'
                         : '* 語音會自動讀出您填寫的內容喔！'}
                     </p>
@@ -978,7 +964,7 @@
       );
     }
 
-    ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
   </script>
 </body>
 </html>
