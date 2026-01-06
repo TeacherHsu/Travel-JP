@@ -2,22 +2,30 @@
 <html lang="zh-Hant">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <title>旅日一句通｜點了就會說</title>
 
-  <!-- Tailwind (CDN) -->
+  <!-- Tailwind CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
 
   <!-- React 18 UMD -->
-  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
 
-  <!-- Babel：讓你可以在單檔 HTML 直接寫 JSX -->
+  <!-- Babel (讓你可以在單檔直接寫 JSX) -->
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 
-  <!-- Lucide (UMD) -->
-  <!-- 依官方文件：UMD 可直接用 script 載入，然後 lucide.createIcons() 會把 data-lucide 轉成 svg -->
-  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+  <!-- Lucide (用 data-lucide 方式渲染 icon，不用 bundler / npm) -->
+  <script src="https://unpkg.com/lucide@0.559.0/dist/umd/lucide.min.js"></script>
+
+  <style>
+    /* 隱藏水平 scrollbar（你原本的 no-scrollbar） */
+    .no-scrollbar::-webkit-scrollbar { width: 0; height: 0; display: none; }
+    .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+    /* iOS 點按更順 */
+    html, body { -webkit-tap-highlight-color: transparent; }
+  </style>
 </head>
 
 <body class="bg-[#fdfbf7]">
@@ -26,29 +34,15 @@
   <script type="text/babel">
     const { useState, useEffect, useRef } = React;
 
-    // ---- Lucide helper (vanilla) ----
-    function LucideIcon({ name, size = 18, className = "" }) {
-      // size 會轉為 width/height（lucide 會吃到 svg attrs）
-      return (
-        <i
-          data-lucide={name}
-          style={{ width: size + "px", height: size + "px" }}
-          className={className}
-        ></i>
-      );
-    }
-
     // --- 1. 常數與設定 ---
     const STORAGE_KEY = 'tabi_talk_phrases_v15';
 
-    // 分類定義（icon 改為 lucide 名稱字串）
     const CATEGORIES = [
       { id: 'survival',       name: '萬用', icon: 'message-circle', activeClass: 'bg-rose-50 text-rose-600 border-rose-200' },
       { id: 'consumption',    name: '消費', icon: 'shopping-bag',   activeClass: 'bg-orange-50 text-orange-700 border-orange-200' },
       { id: 'transport',      name: '交通', icon: 'train',          activeClass: 'bg-sky-50 text-sky-700 border-sky-200' },
       { id: 'accommodation',  name: '住宿', icon: 'home',           activeClass: 'bg-violet-50 text-violet-700 border-violet-200' },
       { id: 'interaction',    name: '社交', icon: 'camera',         activeClass: 'bg-teal-50 text-teal-700 border-teal-200' },
-      { id: 'food',           name: '食材', icon: 'utensils',       activeClass: 'bg-amber-50 text-amber-700 border-amber-200' },
       { id: 'emergency',      name: '救援', icon: 'alert-circle',   activeClass: 'bg-stone-100 text-stone-600 border-stone-300' },
     ];
 
@@ -56,12 +50,11 @@
     const CATEGORY_ORDER = CATEGORIES.map(c => c.id);
 
     const CATEGORY_KEYWORDS = {
-      emergency: ['痛', '不舒服', '幫忙', '救護車', '過敏', '警察', '偷', '迷路', '遺失', '掉', '報案', '醫院'],
-      consumption: ['錢', '買', '吃', '菜單', '內用', '外帶', '位', '預約', '支付', '刷卡', '退稅', '結帳', '收據', '多少', '魚', '生'],
-      food: ['牛', '豬', '雞', '肉', '魚', '丼', '麵', '飯', '茶', '酒', '湯', '鍋', '燒', '炸', '刺身', '定食', '蛋', '鰻', '午餐肉', '鮭魚'],
-      transport: ['車', '站', '去', '出口', '月台', '票', '儲值', '線', '搭', '高速'],
-      accommodation: ['住', '房', '早餐', '行李', 'Wi-Fi', '退房', '入住', '寄放', '空調', '毛巾'],
-      interaction: ['拍照', '相片', '打擾', '中文', '台灣']
+      emergency:      ['痛', '不舒服', '幫忙', '救護車', '過敏', '警察', '偷', '迷路', '遺失', '掉', '報案', '醫院'],
+      consumption:    ['錢', '買', '吃', '菜單', '內用', '外帶', '位', '預約', '支付', '刷卡', '退稅', '結帳', '收據', '多少'],
+      transport:      ['車', '站', '去', '出口', '月台', '票', '儲值', '線', '搭', '高速'],
+      accommodation:  ['住', '房', '早餐', '行李', 'Wi-Fi', '退房', '入住', '寄放', '空調', '毛巾'],
+      interaction:    ['拍照', '相片', '打擾', '中文', '台灣']
     };
 
     const INITIAL_PHRASES = [
@@ -155,11 +148,27 @@
       { id: 'c28', category: 'consumption', zh: '這個太大／太小', jp: '大きいです／小さいです', romaji: 'Ōkii desu / Chiisai desu' },
       { id: 'c29', category: 'consumption', zh: '可以換貨／退貨嗎？', jp: '交換（返品）はできますか？', romaji: 'Kōkan (Henpin) wa dekimasu ka?' },
       { id: 'c5', category: 'consumption', zh: '這是什麼？', jp: 'これは何ですか？', romaji: 'Kore wa nan desu ka?' },
-      { id: 'c44', category: 'consumption', zh: '這是魚嗎？', jp: 'これは魚ですか？', romaji: 'Kore wa sakana desu ka?' },
-      { id: 'c45', category: 'consumption', zh: '這是生的嗎？', jp: 'これは生ですか？', romaji: 'Kore wa nama desu ka?' },
       { id: 'c6', category: 'consumption', zh: '推薦哪一個？', jp: 'おすすめはどちらですか？', romaji: 'Osusume wa dochira desu ka?' },
       { id: 'c34', category: 'consumption', zh: '不要塑膠袋', jp: '袋はいりません', romaji: 'Fukuro wa irimasen' },
       { id: 'c9', category: 'consumption', zh: '麻煩幫我裝袋', jp: '袋をお願いします', romaji: 'Fukuro o onegaishimasu' },
+
+      // --- 住宿 (Accommodation) ---
+      { id: 'a5', category: 'accommodation', zh: '麻煩辦理入住', jp: 'チェックインをお願いします', romaji: 'Chekkuin o onegaishimasu' },
+      { id: 'a10', category: 'accommodation', zh: '我有訂房，這是訂單', jp: '予約しています。こちらです', romaji: 'Yoyaku shiteimasu. Kochira desu' },
+      { id: 'a11', category: 'accommodation', zh: '可以提早入住／延後退房嗎？', jp: 'アーリーチェックイン（レイトチェックアウト）はできますか？', romaji: 'Ārī chekkuin (Reito chekkuauto) wa dekimasu ka?' },
+      { id: 'a12', category: 'accommodation', zh: '麻煩辦理退房', jp: 'チェックアウトをお願いします', romaji: 'Chekkuauto o onegaishimasu' },
+      { id: 'a9', category: 'accommodation', zh: '可以寄放行李嗎？', jp: '荷物、預けられますか？', romaji: 'Nimotsu, azukeraremasu ka?' },
+      { id: 'a17', category: 'accommodation', zh: '可以借轉接頭/充電器嗎？', jp: '変換プラグ（充電器）は借りられますか？', romaji: 'Henkan puragu (jūdenki) wa kariraremasu ka?' },
+      { id: 'a13', category: 'accommodation', zh: '房卡不能用', jp: 'カードキーが使えません', romaji: 'Kādokī ga tsukaemasen' },
+      { id: 'a14', category: 'accommodation', zh: '房間有問題(空調不冷)', jp: 'エアコンが効きません', romaji: 'Eakon ga kikimasen' },
+      { id: 'a18', category: 'accommodation', zh: '毛巾不夠', jp: 'タオルをもう一枚ください', romaji: 'Taoru o mō ichimai kudasai' },
+      { id: 'a15', category: 'accommodation', zh: '可以換房嗎？', jp: '部屋を変えていただけますか？', romaji: 'Heya o kaete itadakemasu ka?' },
+      { id: 'a16', category: 'accommodation', zh: 'Wi-Fi 密碼是什麼？', jp: 'Wi-Fiのパスワードは何ですか？', romaji: 'Wi-Fi no pasuwādo wa nan desu ka?' },
+      { id: 'a6', category: 'accommodation', zh: '想加訂早餐', jp: '朝食を追加したいのですが', romaji: 'Chōshoku o tsuika shitai no desu ga' },
+      { id: 'a7', category: 'accommodation', zh: '請幫我叫計程車', jp: 'タクシー呼んでもらえますか？', romaji: 'Takushī yonde moraemasu ka?' },
+      { id: 'a19', category: 'accommodation', zh: '可以打掃嗎', jp: '掃除お願いします', romaji: 'Sōji onegaishimasu' },
+      { id: 'a20', category: 'accommodation', zh: '不用打掃', jp: '掃除いりません', romaji: 'Sōji irimasen' },
+      { id: 'a8', category: 'accommodation', zh: '是否有我的包裹？', jp: '私宛の荷物は届いていますか？', romaji: 'Watashi-ate no nimotsu wa todoite imasu ka?' },
 
       // --- 交通 (Transport) ---
       { id: 't18', category: 'transport', zh: '我想儲值(加值)', jp: 'チャージしたいです', romaji: 'Chāji shitai desu' },
@@ -195,24 +204,6 @@
       { id: 't16', category: 'transport', zh: '請到這個地址(計程車)', jp: 'この住所までお願いします', romaji: 'Kono jūsho made onegaishimasu' },
       { id: 't17', category: 'transport', zh: '麻煩走高速公路', jp: '高速でお願いします', romaji: 'Kōsoku de onegaishimasu' },
 
-      // --- 住宿 (Accommodation) ---
-      { id: 'a5', category: 'accommodation', zh: '麻煩辦理入住', jp: 'チェックインをお願いします', romaji: 'Chekkuin o onegaishimasu' },
-      { id: 'a10', category: 'accommodation', zh: '我有訂房，這是訂單', jp: '予約しています。こちらです', romaji: 'Yoyaku shiteimasu. Kochira desu' },
-      { id: 'a11', category: 'accommodation', zh: '可以提早入住／延後退房嗎？', jp: 'アーリーチェックイン（レイトチェックアウト）はできますか？', romaji: 'Ārī chekkuin (Reito chekkuauto) wa dekimasu ka?' },
-      { id: 'a12', category: 'accommodation', zh: '麻煩辦理退房', jp: 'チェックアウトをお願いします', romaji: 'Chekkuauto o onegaishimasu' },
-      { id: 'a9', category: 'accommodation', zh: '可以寄放行李嗎？', jp: '荷物、預けられますか？', romaji: 'Nimotsu, azukeraremasu ka?' },
-      { id: 'a17', category: 'accommodation', zh: '可以借轉接頭/充電器嗎？', jp: '変換プラグ（充電器）は借りられますか？', romaji: 'Henkan puragu (jūdenki) wa kariraremasu ka?' },
-      { id: 'a13', category: 'accommodation', zh: '房卡不能用', jp: 'カードキーが使えません', romaji: 'Kādokī ga tsukaemasen' },
-      { id: 'a14', category: 'accommodation', zh: '房間有問題(空調不冷)', jp: 'エアコンが効きません', romaji: 'Eakon ga kikimasen' },
-      { id: 'a18', category: 'accommodation', zh: '毛巾不夠', jp: 'タオルをもう一枚ください', romaji: 'Taoru o mō ichimai kudasai' },
-      { id: 'a15', category: 'accommodation', zh: '可以換房嗎？', jp: '部屋を変えていただけますか？', romaji: 'Heya o kaete itadakemasu ka?' },
-      { id: 'a16', category: 'accommodation', zh: 'Wi-Fi 密碼是什麼？', jp: 'Wi-Fiのパスワードは何ですか？', romaji: 'Wi-Fi no pasuwādo wa nan desu ka?' },
-      { id: 'a6', category: 'accommodation', zh: '想加訂早餐', jp: '朝食を追加したいのですが', romaji: 'Chōshoku o tsuika shitai no desu ga' },
-      { id: 'a7', category: 'accommodation', zh: '請幫我叫計程車', jp: 'タクシー呼んでもらえますか？', romaji: 'Takushī yonde moraemasu ka?' },
-      { id: 'a19', category: 'accommodation', zh: '可以打掃嗎', jp: '掃除お願いします', romaji: 'Sōji onegaishimasu' },
-      { id: 'a20', category: 'accommodation', zh: '不用打掃', jp: '掃除いりません', romaji: 'Sōji irimasen' },
-      { id: 'a8', category: 'accommodation', zh: '是否有我的包裹？', jp: '私宛の荷物は届いていますか？', romaji: 'Watashi-ate no nimotsu wa todoite imasu ka?' },
-
       // --- 社交 (Interaction) ---
       { id: 'i4', category: 'interaction', zh: '你好', jp: 'こんにちは', romaji: 'Konnichiwa' },
       { id: 'i5', category: 'interaction', zh: '晚安', jp: 'こんばんは', romaji: 'Konbanwa' },
@@ -224,36 +215,6 @@
       { id: 'i1', category: 'interaction', zh: '可以拍照嗎？', jp: '写真いいですか？', romaji: 'Shashin ii desu ka?' },
       { id: 'i9', category: 'interaction', zh: '我可以跟你合照嗎？', jp: '一緒に写真を撮ってもいいですか？', romaji: 'Issho ni shashin o totte mo ii desu ka?' },
       { id: 'i2', category: 'interaction', zh: '可以幫我拍照嗎？', jp: '写真撮ってもらえますか？', romaji: 'Shashin totte moraemasu ka?' },
-
-      // --- 食材 (Food) ---
-      { id: 'f1', category: 'food', zh: '牛五花', jp: 'カルビ', romaji: 'Karubi · Short Rib' },
-      { id: 'f2', category: 'food', zh: '牛里肌', jp: 'ロース', romaji: 'Rōsu · Loin' },
-      { id: 'f3', category: 'food', zh: '橫膈膜', jp: 'ハラミ', romaji: 'Harami · Skirt Steak' },
-      { id: 'f4', category: 'food', zh: '黑毛和牛', jp: '黒毛和牛', romaji: 'Kuroge Wagyu · Black Wagyu' },
-      { id: 'f5', category: 'food', zh: '豬五花', jp: '豚バラ', romaji: 'Butabara · Pork Belly' },
-      { id: 'f6', category: 'food', zh: '松阪豬', jp: 'トントロ', romaji: 'Tontoro · Pork Neck' },
-      { id: 'f7', category: 'food', zh: '雞腿肉', jp: 'もも', romaji: 'Momo · Chicken Thigh' },
-      { id: 'f8', category: 'food', zh: '雞胸肉', jp: 'むね', romaji: 'Mune · Chicken Breast' },
-      { id: 'f9', category: 'food', zh: '雞軟骨', jp: '軟骨', romaji: 'Nankotsu · Cartilage' },
-      { id: 'f10', category: 'food', zh: '炸豬排', jp: '豚カツ', romaji: 'Tonkatsu · Pork Cutlet' },
-      { id: 'f11', category: 'food', zh: '唐揚炸雞', jp: '唐揚げ', romaji: 'Karaage · Fried Chicken' },
-      { id: 'f12', category: 'food', zh: '親子丼', jp: '親子丼', romaji: 'Oyakodon · Chicken & Egg Bowl' },
-      { id: 'f13', category: 'food', zh: '壽喜燒', jp: 'すき焼き', romaji: 'Sukiyaki' },
-      { id: 'f14', category: 'food', zh: '涮涮鍋', jp: 'しゃぶしゃぶ', romaji: 'Shabu-shabu' },
-      { id: 'f15', category: 'food', zh: '炙燒', jp: '炙り', romaji: 'Aburi · Seared' },
-      { id: 'f16', category: 'food', zh: '燉煮', jp: '煮込み', romaji: 'Nikomi · Stewed' },
-      { id: 'f17', category: 'food', zh: '定食／套餐', jp: '定食／セット', romaji: 'Teishoku / Setto · Set Meal' },
-      { id: 'f18', category: 'food', zh: '醬汁／醬燒', jp: 'タレ', romaji: 'Tare · Sauce' },
-      { id: 'f19', category: 'food', zh: '柚子醋', jp: 'ポン酢', romaji: 'Ponzu' },
-      { id: 'f20', category: 'food', zh: '山葵', jp: 'わさび', romaji: 'Wasabi' },
-      { id: 'f21', category: 'food', zh: '檸檬沙瓦', jp: 'レモンサワー', romaji: 'Remon Sawa · Lemon Sour' },
-      { id: 'f22', category: 'food', zh: '烏龍茶', jp: 'ウーロン茶', romaji: 'Uuroncha · Oolong Tea' },
-      { id: 'f23', category: 'food', zh: '水', jp: 'お水', romaji: 'Omizu · Water' },
-      { id: 'f24', category: 'food', zh: '白飯（少）', jp: 'ご飯少なめ', romaji: 'Gohan Sukuname · Less Rice' },
-      { id: 'f25', category: 'food', zh: '鰻魚', jp: 'うなぎ', romaji: 'Unagi · Eel' },
-      { id: 'f26', category: 'food', zh: '鮭魚', jp: 'サーモン', romaji: 'Sāmon · Salmon' },
-      { id: 'f27', category: 'food', zh: '午餐肉', jp: 'スパム', romaji: 'Supamu · Spam' },
-      { id: 'f28', category: 'food', zh: '蛋', jp: '卵', romaji: 'Tamago · Egg' },
 
       // --- 救援 (Emergency) ---
       { id: 'e9', category: 'emergency', zh: '我需要幫忙', jp: '助けてください', romaji: 'Tasukete kudasai' },
@@ -325,6 +286,11 @@
       }
     }
 
+    function LucideIcon({ name, size = 18, className = '' }) {
+      // lucide 會把帶 data-lucide 的元素替換成 svg
+      return <i data-lucide={name} width={size} height={size} className={className} />;
+    }
+
     function App() {
       const [phrases, setPhrases] = useState(loadPhrasesSafe);
       const [activeCategory, setActiveCategory] = useState('survival');
@@ -334,6 +300,7 @@
       const [isAdding, setIsAdding] = useState(false);
       const [newPhrase, setNewPhrase] = useState({ zh: '', jp: '', romaji: '', category: 'survival' });
       const [voices, setVoices] = useState([]);
+
       const [phraseToDelete, setPhraseToDelete] = useState(null);
       const [inputText, setInputText] = useState('');
       const [selectedOption, setSelectedOption] = useState(null);
@@ -345,14 +312,11 @@
 
       const selectedPhrase = phrases.find(p => p.id === selectedPhraseId) || null;
 
-      // Lucide icons：每次畫面更新後，把 data-lucide 轉成 svg
+      // 任何 render 後把 lucide icon 補上（避免 icon 空白）
       useEffect(() => {
-        if (window.lucide && typeof window.lucide.createIcons === 'function') {
-          window.lucide.createIcons();
-        }
+        try { window.lucide?.createIcons?.(); } catch (e) {}
       });
 
-      // Cleanup
       useEffect(() => () => stopSpeaking(), []);
 
       useEffect(() => {
@@ -438,10 +402,12 @@
         const pickVoice = () => {
           let available = voices;
           if (!available || available.length === 0) available = synth.getVoices();
-          return available.find(v => v.name.includes('Google') && v.lang === 'ja-JP') ||
-                 available.find(v => v.lang === 'ja-JP') ||
-                 available.find(v => v.lang && v.lang.startsWith('ja')) ||
-                 null;
+          return (
+            available.find(v => v.name.includes('Google') && v.lang === 'ja-JP') ||
+            available.find(v => v.lang === 'ja-JP') ||
+            available.find(v => v.lang.startsWith('ja')) ||
+            null
+          );
         };
 
         const attemptSpeak = (retryWithDefault = false) => {
@@ -472,7 +438,7 @@
               return;
             }
             if (!retryWithDefault) {
-              console.warn(\`Speech synthesis error (\${e.error}). Retrying with system default...\`);
+              console.warn(`Speech synthesis error (${e.error}). Retrying with system default...`);
               window.speechSynthesis.cancel();
               setTimeout(() => attemptSpeak(true), 100);
             } else {
@@ -516,9 +482,9 @@
       };
 
       const handleNewPhraseChange = (field, value) => {
-        let updatedPhrase = { ...newPhrase, [field]: value };
-        if (field === 'zh') updatedPhrase.category = guessCategory(value);
-        setNewPhrase(updatedPhrase);
+        let updated = { ...newPhrase, [field]: value };
+        if (field === 'zh') updated.category = guessCategory(value);
+        setNewPhrase(updated);
       };
 
       const handleAddSubmit = (e) => {
@@ -531,7 +497,6 @@
           alert('中文和日文是必填欄位，且不能只有空白喔！');
           return;
         }
-
         if ((cleanJp.match(/___/g) || []).length > 1) {
           alert('抱歉，目前每句話只支援一個填空 (___) 喔！');
           return;
@@ -555,7 +520,7 @@
       const openGoogleTranslate = () => {
         const text = newPhrase.zh;
         if (!text) return;
-        const url = \`https://translate.google.com/?sl=zh-TW&tl=ja&text=\${encodeURIComponent(text)}&op=translate\`;
+        const url = `https://translate.google.com/?sl=zh-TW&tl=ja&text=${encodeURIComponent(text)}&op=translate`;
         window.open(url, '_blank');
       };
 
@@ -574,11 +539,7 @@
 
       return (
         <div className="min-h-screen bg-[#fdfbf7] text-stone-700 font-sans selection:bg-rose-100 pb-20 overflow-x-hidden">
-          <style>{\`
-            .no-scrollbar::-webkit-scrollbar { width: 0; height: 0; display: none; }
-            .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
-          \`}</style>
-
+          {/* 頂部標題與工具列 */}
           <header className="sticky top-0 z-10 bg-[#fdfbf7]/95 backdrop-blur-sm border-b border-stone-200 shadow-sm transition-all w-full overflow-x-hidden">
             <div className="max-w-md mx-auto px-4 py-3 flex items-center justify-between gap-4">
               <div onClick={() => {setIsEditMode(false); setIsAdding(false);}} className="cursor-pointer flex-1 min-w-0">
@@ -590,7 +551,7 @@
               <div className="flex gap-2 flex-shrink-0">
                 <button
                   onClick={() => setIsEditMode(!isEditMode)}
-                  className={\`p-2 rounded-full transition-colors flex items-center gap-1 \${isEditMode ? 'bg-rose-50 text-rose-500' : 'text-stone-400 hover:bg-stone-100'}\`}
+                  className={`p-2 rounded-full transition-colors flex items-center gap-1 ${isEditMode ? 'bg-rose-50 text-rose-500' : 'text-stone-400 hover:bg-stone-100'}`}
                   title={isEditMode ? "完成編輯" : "編輯順序"}
                 >
                   {isEditMode ? <LucideIcon name="check" size={20} /> : <LucideIcon name="edit-3" size={20} />}
@@ -605,6 +566,7 @@
               </div>
             </div>
 
+            {/* 分類導航 */}
             <div className="relative max-w-md mx-auto px-2 pb-2 overflow-hidden">
               <div className="pointer-events-none absolute inset-y-0 left-0 w-8 bg-gradient-to-r from-[#fdfbf7] to-transparent z-10" />
               <div className="pointer-events-none absolute inset-y-0 right-0 w-8 bg-gradient-to-l from-[#fdfbf7] to-transparent z-10" />
@@ -614,12 +576,12 @@
                   <button
                     key={cat.id}
                     onClick={() => setActiveCategory(cat.id)}
-                    className={\`
+                    className={`
                       flex items-center gap-1.5 px-4 py-2 rounded-full whitespace-nowrap text-sm font-medium transition-all duration-200 flex-shrink-0
-                      \${activeCategory === cat.id
-                        ? \`\${cat.activeClass} border shadow-sm\`
+                      ${activeCategory === cat.id
+                        ? `${cat.activeClass} border shadow-sm`
                         : 'bg-white text-stone-500 border border-stone-200 hover:bg-stone-50'}
-                    \`}
+                    `}
                   >
                     <LucideIcon name={cat.icon} size={18} />
                     {cat.name}
@@ -629,6 +591,7 @@
             </div>
           </header>
 
+          {/* 主要列表 */}
           <main className="max-w-md mx-auto p-4">
             <div className="mb-4 flex items-center justify-between text-stone-400 text-sm">
               <div className="flex items-center gap-2">
@@ -644,10 +607,10 @@
                 <div key={phrase.id} className="relative group">
                   <button
                     onClick={() => !isEditMode && setSelectedPhraseId(phrase.id)}
-                    className={\`
+                    className={`
                       w-full bg-white p-4 rounded-2xl border shadow-sm transition-all text-left flex justify-between items-start
-                      \${isEditMode ? 'border-stone-200 pl-12' : 'border-stone-100 hover:shadow-md hover:border-rose-100 active:scale-[0.99]'}
-                    \`}
+                      ${isEditMode ? 'border-stone-200 pl-12' : 'border-stone-100 hover:shadow-md hover:border-rose-100 active:scale-[0.99]'}
+                    `}
                   >
                     <div className="flex-1 min-w-0">
                       <h3 className="text-stone-800 font-bold text-xl mb-1 truncate flex items-center gap-2">
@@ -657,7 +620,6 @@
                       <p className="text-rose-500/80 text-sm font-medium mb-0.5 truncate">{phrase.jp}</p>
                       <p className="text-stone-400 text-sm font-light truncate font-mono">{phrase.romaji}</p>
                     </div>
-
                     {!isEditMode && (
                       <div className="mt-2 text-stone-200 group-hover:text-rose-300 transition-colors">
                         <LucideIcon name="chevron-right" size={20} />
@@ -740,7 +702,6 @@
                       )}
                     </div>
                   </div>
-
                   <div>
                     <label className="block text-xs font-medium text-stone-500 mb-1.5">日文 (必填)</label>
                     <div className="space-y-1">
@@ -755,7 +716,6 @@
                       <p className="text-[10px] text-stone-400 pl-1">* 填空請輸入三個底線 "___"</p>
                     </div>
                   </div>
-
                   <div>
                     <label className="block text-xs font-medium text-stone-500 mb-1.5">羅馬拼音 (選填)</label>
                     <input
@@ -766,7 +726,6 @@
                       className="w-full p-3 bg-stone-50 border border-stone-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-rose-100 focus:border-rose-300 transition-all text-stone-700"
                     />
                   </div>
-
                   <div>
                     <label className="block text-xs font-medium text-stone-500 mb-1.5">分類</label>
                     <div className="relative">
@@ -784,7 +743,6 @@
                       </div>
                     </div>
                   </div>
-
                   <button
                     type="submit"
                     className="w-full py-3.5 bg-rose-400 text-white rounded-xl font-bold hover:bg-rose-500 shadow-sm hover:shadow-md active:scale-[0.98] transition-all mt-2"
@@ -853,16 +811,14 @@
                   <div className="w-12 h-1 bg-stone-100 rounded-full"></div>
 
                   <div className="space-y-4 w-full">
-                    <span className="px-3 py-1 bg-stone-50 text-stone-400 text-xs rounded-full border border-stone-100">
-                      請指給對方看
-                    </span>
+                    <span className="px-3 py-1 bg-stone-50 text-stone-400 text-xs rounded-full border border-stone-100">請指給對方看</span>
 
-                    {selectedPhrase.jp.includes('___') ? (
+                    {isTemplate ? (
                       <div className="mb-4">
                         <p className="text-4xl sm:text-5xl font-bold text-stone-800 leading-snug break-words">
-                          {selectedPhrase.jp.split('___')[0]}
+                          {templateParts[0]}
 
-                          {(selectedPhrase.options && selectedPhrase.options.length > 0 && !isManualMode) ? (
+                          {(hasOptions && !isManualMode) ? (
                             <span className="text-rose-500 border-b-2 border-rose-500 px-2 mx-1">
                               {selectedOption ? selectedOption.jp : '___'}
                             </span>
@@ -877,21 +833,21 @@
                             />
                           )}
 
-                          {selectedPhrase.jp.split('___')[1]}
+                          {templateParts[1]}
                         </p>
 
-                        {selectedPhrase.options && selectedPhrase.options.length > 0 && !isManualMode && (
+                        {hasOptions && !isManualMode && (
                           <div className="mt-6 grid grid-cols-2 gap-3 max-w-[280px] mx-auto">
                             {selectedPhrase.options.map((opt, idx) => (
                               <button
                                 key={idx}
                                 onClick={() => handleOptionClick(opt)}
-                                className={\`
+                                className={`
                                   py-3 px-4 rounded-xl text-sm font-bold transition-all shadow-sm
-                                  \${selectedOption?.jp === opt.jp
+                                  ${selectedOption?.jp === opt.jp
                                     ? 'bg-rose-500 text-white shadow-rose-200 transform scale-[1.02]'
                                     : 'bg-white border border-stone-200 text-stone-600 hover:bg-stone-50 hover:border-stone-300'}
-                                \`}
+                                `}
                               >
                                 <span className="block text-xs font-normal opacity-80 mb-0.5">{opt.zh}</span>
                                 <span className="block text-lg">{opt.jp}</span>
@@ -900,15 +856,14 @@
                           </div>
                         )}
 
-                        {selectedPhrase.options && selectedPhrase.options.length > 0 ? (
+                        {hasOptions ? (
                           <div className="mt-6 flex justify-center">
                             <button
                               onClick={() => setIsManualMode(!isManualMode)}
                               className="flex items-center gap-1.5 text-xs text-stone-400 hover:text-stone-600 transition-colors py-2 px-3 rounded-lg hover:bg-stone-50"
                             >
-                              {isManualMode
-                                ? <><LucideIcon name="layout-grid" size={14} /> 切換回選項模式</>
-                                : <><LucideIcon name="keyboard" size={14} /> 切換手動輸入</>}
+                              {isManualMode ? <LucideIcon name="layout-grid" size={14} /> : <LucideIcon name="keyboard" size={14} />}
+                              {isManualMode ? '切換回選項模式' : '切換手動輸入'}
                             </button>
                           </div>
                         ) : (
@@ -922,7 +877,7 @@
                     )}
 
                     <p className="text-lg text-stone-400 font-light italic font-mono">
-                      {selectedPhrase.romaji.replace('___', '...')}
+                      {(selectedPhrase.romaji || '').replace('___', '...')}
                     </p>
                   </div>
                 </div>
@@ -930,30 +885,28 @@
                 <div className="p-6 bg-stone-50/50 border-t border-stone-100">
                   <button
                     onClick={() => {
-                      const hasOptions = selectedPhrase.options && selectedPhrase.options.length > 0;
-                      const text =
-                        (hasOptions && !isManualMode && selectedOption)
-                          ? selectedPhrase.jp.replace('___', selectedOption.jp)
-                          : (inputText ? selectedPhrase.jp.replace('___', inputText) : selectedPhrase.jp);
+                      const text = (hasOptions && !isManualMode && selectedOption)
+                        ? selectedPhrase.jp.replace('___', selectedOption.jp)
+                        : (inputText ? selectedPhrase.jp.replace('___', inputText) : selectedPhrase.jp);
                       speak(text);
                     }}
-                    className={\`
+                    className={`
                       w-full py-4 rounded-2xl flex items-center justify-center gap-3 text-lg font-bold transition-all shadow-lg active:scale-[0.98]
-                      \${isSpeaking ? 'bg-stone-100 text-stone-500' : 'bg-rose-300 text-white hover:bg-rose-400 shadow-md shadow-rose-100/40'}
-                    \`}
+                      ${isSpeaking
+                        ? 'bg-stone-100 text-stone-500'
+                        : 'bg-rose-300 text-white hover:bg-rose-400 shadow-md shadow-rose-100/40'}
+                    `}
                   >
                     {isSpeaking ? (
-                      <><LucideIcon name="square" size={20} /> 點擊停止</>
+                      <><LucideIcon name="square" size={20} className="fill-current" /> 點擊停止</>
                     ) : (
                       <><LucideIcon name="volume-2" size={22} /> 播放發音</>
                     )}
                   </button>
 
-                  {selectedPhrase.jp.includes('___') && (
+                  {isTemplate && (
                     <p className="mt-3 text-center text-xs text-stone-400 font-medium">
-                      {(selectedPhrase.options && selectedPhrase.options.length > 0 && !isManualMode)
-                        ? '* 點擊上方選項即可直接發音'
-                        : '* 語音會自動讀出您填寫的內容喔！'}
+                      {hasOptions && !isManualMode ? '* 點擊上方選項即可直接發音' : '* 語音會自動讀出您填寫的內容喔！'}
                     </p>
                   )}
                 </div>
